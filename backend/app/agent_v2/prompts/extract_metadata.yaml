@@ -1,0 +1,7 @@
+prompt: >
+  Extract and return in JSON:
+  - disaster_type
+  - urgency
+  - affected_people
+  - location
+  Use only information explicitly stated.

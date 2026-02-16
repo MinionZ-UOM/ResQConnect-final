@@ -1,0 +1,2519 @@
+openapi: 3.1.0
+info:
+  title: ResQConnect API
+  version: 1.0.0
+  description: API documentation for ResQConnect
+tags:
+- name: Users
+  description: User registration, authentication and profile related endpoints.
+- name: Requests
+  description: Help request management (submitted by affected individuals).
+- name: Tasks
+  description: Task management (assignments for volunteers/responders).
+- name: Resources
+  description: Resource inventory management.
+- name: Disasters
+  description: Disaster event management and participation.
+- name: Chat
+  description: Realtime chat messages within disaster events.
+- name: Observations
+  description: Community observations and reports related to disasters.
+- name: Agent
+  description: Internal AI agent endpoints (for automated workflows).
+- name: Chatbot
+  description: Internal AI chatbot endpoints.
+- name: health
+  description: Health check endpoint.
+paths:
+  "/":
+    get:
+      tags:
+      - health
+      summary: Health Check
+      description: Returns a simple status to indicate the API is running.
+      operationId: root__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              example:
+                status: ok
+  /users/register:
+    post:
+      tags:
+      - Users
+      summary: Register User
+      description: Register a new user. Requires a Firebase ID token in the **Authorization** header (Bearer). If the user already exists, their profile is returned; otherwise a new user is created.
+      operationId: register_users_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+            example:
+              display_name: "John Doe"
+              role_id: "volunteer"
+        required: true
+      responses:
+        '200':
+          description: Successful Response (User profile)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /users/me:
+    get:
+      tags:
+      - Users
+      summary: Get Current User
+      description: Get the profile of the currently authenticated user.
+      operationId: me_users_me_get
+      responses:
+        '200':
+          description: Successful Response (User profile)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /users/me/availability:
+    get:
+      tags:
+      - Users
+      summary: Get Availability (Volunteer)
+      description: Get the current availability status of the logged-in volunteer.
+      operationId: get_my_availability_users_me_availability_get
+      responses:
+        '200':
+          description: Successful Response (availability status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityUpdate-Output"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions (only volunteers can access)
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+    patch:
+      tags:
+      - Users
+      summary: Set Availability (Volunteer)
+      description: Mark the current user (must be a volunteer) as available or not available.
+      operationId: set_my_availability_users_me_availability_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvailabilityUpdate-Input"
+            example:
+              availability: true
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated User profile)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - only volunteers may update availability
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /users/me/location:
+    patch:
+      tags:
+      - Users
+      summary: Update Location
+      description: Update the current user's location. Only affected individuals or first responders can update their location.
+      operationId: set_my_location_users_me_location_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Coordinates-Base"
+            example:
+              lat: 7.0
+              lng: 80.0
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated User profile)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - only specific roles may update location
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /users/{uid}/display_name:
+    get:
+      tags:
+      - Users
+      summary: Get Display Name
+      description: Fetch the display name of a user by their UID. **No authentication required.**
+      operationId: get_display_name_users__uid__display_name_get
+      parameters:
+      - name: uid
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (display name)
+          content:
+            application/json:
+              example:
+                display_name: "John Doe"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "User not found"
+  /requests:
+    get:
+      tags:
+      - Requests
+      summary: List Requests
+      description: List all help requests (requires admin or authorized responder privileges).
+      operationId: list_requests_requests_get
+      responses:
+        '200':
+          description: Successful Response (list of Request objects)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Request"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+    post:
+      tags:
+      - Requests
+      summary: Create Request
+      description: Create a new help request (affected individual users). The request includes details of the need and location.
+      operationId: create_request_requests_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestCreate"
+            example:
+              disaster_id: "disaster_123"
+              type_of_need: "medical"
+              description: "Need medical aid"
+              media: []
+              location:
+                lat: 1.234
+                lng: 5.678
+        required: true
+      responses:
+        '201':
+          description: Successful Response (created Request)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions (only authenticated affected individuals can create requests)
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /requests/me:
+    get:
+      tags:
+      - Requests
+      summary: List My Requests
+      description: List the help requests created by the current authenticated user.
+      operationId: my_requests_requests_me_get
+      responses:
+        '200':
+          description: Successful Response (list of Request objects)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Request"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /requests/{req_id}:
+    get:
+      tags:
+      - Requests
+      summary: Get Request Details
+      description: Get detailed information about a specific help request by its ID. Only the request owner or users with appropriate permissions can view it.
+      operationId: read_request_requests__req_id__get
+      parameters:
+      - name: req_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (Request details)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - you are not the owner or an authorized user for this request
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /requests/{req_id}/status:
+    patch:
+      tags:
+      - Requests
+      summary: Update Request Status
+      description: Update the status of an existing help request (e.g., mark as in_progress, fulfilled, or closed). Requires appropriate permissions (e.g., responder or admin).
+      operationId: update_request_status_requests__req_id__status_patch
+      parameters:
+      - name: req_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestStatusUpdate"
+            example:
+              status: "fulfilled"
+              assigned_task_id: "task_123"
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated Request)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions (only authorized personnel can update request status)
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /requests/disaster/{disaster_id}:
+    get:
+      tags:
+      - Requests
+      summary: List Requests by Disaster
+      description: Get all help requests associated with a specific disaster event.
+      operationId: list_requests_by_disaster_requests_disaster__disaster_id__get
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (list of Request objects for the disaster)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Request"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /tasks:
+    get:
+      tags:
+      - Tasks
+      summary: List Tasks
+      description: List all tasks. Only authorized personnel (e.g., admins or dispatchers) can retrieve all tasks.
+      operationId: list_tasks_tasks_get
+      responses:
+        '200':
+          description: Successful Response (list of Task objects)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+    post:
+      tags:
+      - Tasks
+      summary: Create Task
+      description: Create a new task (e.g., in response to a help request). Only users with task assignment permissions can create tasks.
+      operationId: create_task_tasks_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreate"
+            example:
+              disaster_id: "disaster_123"
+              priority: 2
+              instructions: "Rescue trapped people"
+              role_required: "volunteer"
+              resource_ids: []
+        required: true
+      responses:
+        '201':
+          description: Successful Response (created Task)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions (only authorized users can create tasks)
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /tasks/me:
+    get:
+      tags:
+      - Tasks
+      summary: List My Tasks
+      description: List tasks assigned to the current authenticated user (volunteer or responder).
+      operationId: my_tasks_tasks_me_get
+      responses:
+        '200':
+          description: Successful Response (list of Task objects)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /tasks/{task_id}:
+    get:
+      tags:
+      - Tasks
+      summary: Get Task Details
+      description: Get details of a specific task by ID. Only the assigned volunteer or authorized personnel can retrieve the task.
+      operationId: read_task_tasks__task_id__get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (Task details)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - you are not the assignee or an authorized user for this task
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /tasks/{task_id}/status:
+    patch:
+      tags:
+      - Tasks
+      summary: Update Task Status
+      description: Update the status (and optionally ETA) of a task (e.g., mark as on_route, completed, failed). Typically done by the assigned volunteer or system.
+      operationId: update_task_status_tasks__task_id__status_patch
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskStatusUpdate"
+            example:
+              status: "completed"
+              eta_minutes: 0
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated Task)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /tasks/{task_id}/authorize:
+    patch:
+      tags:
+      - Tasks
+      summary: Authorize Task
+      description: Mark a task as authorized (approved). Only users with appropriate permissions (e.g., admins) can authorize tasks.
+      operationId: authorize_task_endpoint_tasks__task_id__authorize_patch
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (Task marked as authorized)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions (admin only)
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /tasks/{task_id}/assign:
+    patch:
+      tags:
+      - Tasks
+      summary: Assign Task
+      description: Assign a task to a volunteer or responder. Only authorized users (e.g., admins or dispatchers) can assign tasks.
+      operationId: assign_task_tasks__task_id__assign_patch
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskAssignPayload"
+            example:
+              assigned_to: "user_123"
+        required: true
+      responses:
+        '200':
+          description: Successful Response (assigned Task)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+  /resources:
+    get:
+      tags:
+      - Resources
+      summary: List Resources
+      description: List all resource inventory items. Requires appropriate permissions (inventory managers or admins).
+      operationId: list_resources_resources_get
+      responses:
+        '200':
+          description: Successful Response (list of Resource items)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+    post:
+      tags:
+      - Resources
+      summary: Create Resource
+      description: Add a new resource item to the inventory (e.g., by an admin or resource manager).
+      operationId: create_resource_resources_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceCreate"
+            example:
+              category: "FOOD"
+              quantity_total: 100
+              quantity_available: 100
+              location_lat: 7.0
+              location_lng: 80.0
+              status: "available"
+              uid: "user_123"
+        required: true
+      responses:
+        '201':
+          description: Successful Response (created Resource)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        '400':
+          description: Bad Request - invalid input (e.g., user not found or invalid role)
+          content:
+            application/json:
+              example:
+                detail: "User not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /resources/available:
+    get:
+      tags:
+      - Resources
+      summary: List Available Resources
+      description: List all resources that are currently marked as available.
+      operationId: list_available_resources_resources_available_get
+      responses:
+        '200':
+          description: Successful Response (list of available Resource items)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /resources/locations:
+    get:
+      tags:
+      - Resources
+      summary: List Resource Locations
+      description: Fetch the locations of all resources in the inventory (for map display).
+      operationId: get_all_resource_locations_resources_locations_get
+      responses:
+        '200':
+          description: Successful Response (list of resource location entries)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    location:
+                      type: object
+      security: []  # No authentication required
+  /resources/{rid}:
+    get:
+      tags:
+      - Resources
+      summary: Get Resource
+      description: Retrieve details of a specific resource item by its ID.
+      operationId: read_resource_resources__rid__get
+      parameters:
+      - name: rid
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (Resource details)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+    patch:
+      tags:
+      - Resources
+      summary: Update Resource
+      description: Update the properties of an existing resource (e.g., mark usage of some quantity). Only authorized users can update resources.
+      operationId: update_resource_resources__rid__patch
+      parameters:
+      - name: rid
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceUpdate"
+            example:
+              quantity_used: 5
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated Resource)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions or invalid role for resource
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+      security:
+      - BearerAuth: []
+    delete:
+      tags:
+      - Resources
+      summary: Delete Resource
+      description: Delete a resource item from the inventory. Only admins or resource managers can delete resources.
+      operationId: delete_resource_resources__rid__delete
+      parameters:
+      - name: rid
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (deletion confirmation)
+          content:
+            application/json:
+              example:
+                detail: "Resource deleted successfully"
+        '404':
+          description: Not Found (resource does not exist)
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /resources/{rid}/status:
+    put:
+      tags:
+      - Resources
+      summary: Change Resource Status
+      description: Change the availability status of a resource (e.g., mark as not_available or available).
+      operationId: change_resource_status_resources__rid__status_put
+      parameters:
+      - name: rid
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusChangePayload"
+            example:
+              status: "not_available"
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated Resource)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Resource not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+      security:
+      - BearerAuth: []
+  /resources/suggest/{disaster_id}:
+    post:
+      tags:
+      - Resources
+      summary: Suggest Resource Allocation (Internal)
+      description: **Internal use** – trigger the AI agent to suggest resource allocation for tasks in a disaster.
+      operationId: suggest_resources_suggest__disaster_id__post
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (suggested allocations)
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Not Found (disaster or tasks not found)
+          content:
+            application/json:
+              example:
+                detail: "No tasks found for this disaster"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters:
+    get:
+      tags:
+      - Disasters
+      summary: List Disasters
+      description: List all disaster events.
+      operationId: list_disasters_disasters_get
+      responses:
+        '200':
+          description: Successful Response (list of Disaster events)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DisasterResponse"
+    post:
+      tags:
+      - Disasters
+      summary: Create Disaster
+      description: Create a new disaster event. **Admins only.**
+      operationId: create_disaster_disasters_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DisasterCreate"
+            example:
+              name: "Flood in City"
+              description: "Flood due to heavy rain"
+              location:
+                lat: 7.0
+                lng: 80.0
+              image_urls: []
+              type: "flood"
+              severity: "high"
+              affected_count: 100
+        required: true
+      responses:
+        '201':
+          description: Successful Response (created Disaster event)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisasterResponse"
+        '403':
+          description: Forbidden - admins only
+          content:
+            application/json:
+              example:
+                detail: "Admins only"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/location:
+    get:
+      tags:
+      - Disasters
+      summary: List Disaster Locations
+      description: Fetch the location (coordinates) of each disaster event.
+      operationId: list_disaster_locations_disasters_location_get
+      responses:
+        '200':
+          description: Successful Response (list of disaster locations)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    location:
+                      type: object
+  /disasters/agent-suggested:
+    get:
+      tags:
+      - Disasters
+      summary: List Agent-Suggested Disasters
+      description: List all disaster events that were suggested by the AI agent (not yet approved).
+      operationId: get_agent_suggested_disasters_disasters_agent_suggested_get
+      responses:
+        '200':
+          description: Successful Response (list of agent-suggested Disaster events)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DisasterResponse"
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              example:
+                detail: "Internal error message"
+  /disasters/{disaster_id}:
+    get:
+      tags:
+      - Disasters
+      summary: Get Disaster Details
+      description: Get details of a disaster event by ID.
+      operationId: get_disaster_disasters__disaster_id__get
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (Disaster details)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisasterResponse"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+    delete:
+      tags:
+      - Disasters
+      summary: Delete Disaster
+      description: Delete a disaster event (and its associated data). **Admins only.**
+      operationId: delete_disaster_endpoint_disasters__disaster_id__delete
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: No Content (disaster deleted)
+        '403':
+          description: Forbidden - admins only
+          content:
+            application/json:
+              example:
+                detail: "Admins only"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/join:
+    post:
+      tags:
+      - Disasters
+      summary: Join Disaster
+      description: Join the current authenticated user to a disaster event (as a participant in a specified role).
+      operationId: join_disaster_disasters__disaster_id__join_post
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [volunteer, first_responder, affected_individual]
+            example:
+              role: "volunteer"
+        required: true
+      responses:
+        '200':
+          description: Successful Response (updated Disaster with user added)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisasterResponse"
+        '404':
+          description: Not Found (invalid disaster ID)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/leave:
+    delete:
+      tags:
+      - Disasters
+      summary: Leave Disaster
+      description: Remove the current user from the specified disaster event.
+      operationId: leave_disaster_disasters__disaster_id__leave_delete
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (updated Disaster with user removed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisasterResponse"
+        '404':
+          description: Not Found (invalid disaster ID)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/joined:
+    get:
+      tags:
+      - Disasters
+      summary: Check Joined
+      description: Check if the current authenticated user has already joined the specified disaster event.
+      operationId: check_joined_disasters__disaster_id__joined_get
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (joined status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinedResponse"
+        '404':
+          description: Not Found (disaster not found)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/volunteers:
+    get:
+      tags:
+      - Disasters
+      summary: List Volunteers
+      description: List the display names of all volunteers who have joined the specified disaster.
+      operationId: list_volunteers_disasters__disaster_id__volunteers_get
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (list of volunteer names)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        '404':
+          description: Not Found (disaster not found)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '403':
+          description: Forbidden - insufficient permissions (admin only)
+          content:
+            application/json:
+              example:
+                detail: "Not authorized to perform this action"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/approve:
+    post:
+      tags:
+      - Disasters
+      summary: Approve Disaster
+      description: Approve an agent-suggested disaster event (make it an official disaster). **Admins only.**
+      operationId: post_approve_disaster_disasters__disaster_id__approve_post
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (updated Disaster event)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisasterResponse"
+        '404':
+          description: Not Found (disaster not found)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '403':
+          description: Forbidden - admins only
+          content:
+            application/json:
+              example:
+                detail: "Admins only"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/discard:
+    delete:
+      tags:
+      - Disasters
+      summary: Discard Disaster
+      description: Discard (delete) an agent-suggested disaster event. **Admins only.**
+      operationId: delete_discard_disaster_disasters__disaster_id__discard_delete
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: No Content (disaster discarded)
+        '404':
+          description: Not Found (disaster not found)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '403':
+          description: Forbidden - admins only
+          content:
+            application/json:
+              example:
+                detail: "Admins only"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /disasters/{disaster_id}/chat/messages:
+    get:
+      tags:
+      - Chat
+      summary: List Chat Messages
+      description: Get recent chat messages for the specified disaster's group chat.
+      operationId: list_messages_disasters__disaster_id__chat_messages_get
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+      responses:
+        '200':
+          description: Successful Response (list of chat messages)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessageResponse"
+        '404':
+          description: Not Found (disaster not found)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+    post:
+      tags:
+      - Chat
+      summary: Send Chat Message
+      description: Send a new message to the chat of the specified disaster. The sender must be an authenticated user in that disaster.
+      operationId: send_message_disasters__disaster_id__chat_messages_post
+      parameters:
+      - name: disaster_id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageCreate"
+            example:
+              text: "Hello, anyone there?"
+        required: true
+      responses:
+        '201':
+          description: Successful Response (message sent)
+        '404':
+          description: Not Found (disaster not found)
+          content:
+            application/json:
+              example:
+                detail: "Disaster not found"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /observations:
+    get:
+      tags:
+      - Observations
+      summary: List Observations
+      description: List all community observations. If a disaster_id query parameter is provided, filter observations for that disaster.
+      operationId: list_obs_observations_get
+      parameters:
+      - name: disaster_id
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (list of Observation entries)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ObservationResponse"
+    post:
+      tags:
+      - Observations
+      summary: Create Observation
+      description: Submit a new observation (report) related to a disaster (e.g., damage or incident report). Requires authentication and appropriate role (volunteer, responder, or admin).
+      operationId: create_obs_observations_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObservationCreate"
+            example:
+              disaster_id: "disaster_123"
+              title: "Bridge collapse"
+              description: "A bridge collapsed due to earthquake"
+              observation_type: "infrastructure"
+              urgency: "high"
+              latitude: 7.0
+              longitude: 80.0
+              address: "123 Main St"
+              image_urls: []
+        required: true
+      responses:
+        '201':
+          description: Successful Response (created Observation)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservationResponse"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Insufficient permissions"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /observations/{obs_id}:
+    get:
+      tags:
+      - Observations
+      summary: Get Observation
+      description: Get details of a specific observation report by ID.
+      operationId: read_obs_observations__obs_id__get
+      parameters:
+      - name: obs_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Response (Observation details)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservationResponse"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Observation not found"
+    delete:
+      tags:
+      - Observations
+      summary: Delete Observation
+      description: Delete an observation report. **Admins only.**
+      operationId: remove_obs_observations__obs_id__delete
+      parameters:
+      - name: obs_id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: No Content (observation deleted)
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              example:
+                detail: "Observation not found"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              example:
+                detail: "Insufficient permissions"
+        '401':
+          description: Unauthorized - missing or invalid token
+          content:
+            application/json:
+              example:
+                detail: "Auth token missing or invalid"
+      security:
+      - BearerAuth: []
+  /agent/ask:
+    post:
+      tags:
+      - Agent
+      summary: Agent Ask
+      description: **Internal** – Pass a state payload to the AI agent and retrieve its response/state. (Used internally for automated workflows.)
+      operationId: ask_agent_ask_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/State"
+            example:
+              previous_action: null
+              next_action: "request_extraction"
+              request: null
+              disaster: null
+              tasks: []
+              task_allocations: []
+        required: true
+      responses:
+        '200':
+          description: Successful Response (agent state/output)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/State"
+  /chatbot/ask:
+    post:
+      tags:
+      - Chatbot
+      summary: Chatbot Ask
+      description: **Internal** – Send a prompt to the AI chatbot and get a response. 
+      operationId: ask_chatbot_ask_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatInput"
+            example:
+              user:
+                id: "user123"
+                name: "Alice"
+                role: "volunteer"
+                location:
+                  latitude: 7.0
+                  longitude: 80.0
+              prompt: "Hello"
+              chat_history: []
+        required: true
+      responses:
+        '200':
+          description: Successful Response (chatbot reply)
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Action:
+      title: Action
+      description: ''
+      enum:
+      - request_extraction
+      - task_creation
+      - task_allocation
+      - other
+      type: string
+    AvailabilityUpdate-Input:
+      title: AvailabilityUpdate
+      type: object
+      properties:
+        availability:
+          title: Availability
+          type: boolean
+        location:
+          $ref: '#/components/schemas/Coordinates-Base'
+    AvailabilityUpdate-Output:
+      title: AvailabilityUpdate
+      type: object
+      properties:
+        availability:
+          title: Availability
+          type: boolean
+    ChatInput:
+      title: ChatInput
+      required:
+      - user
+      - prompt
+      - chat_history
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User_chatbot'
+        prompt:
+          title: Prompt
+          type: string
+        chat_history:
+          title: Chat History
+          type: array
+          items: {}
+    ChatMessageCreate:
+      title: ChatMessageCreate
+      type: object
+      properties:
+        text:
+          title: Text
+          type: string
+      required:
+      - text
+    ChatMessageResponse:
+      title: ChatMessageResponse
+      required:
+      - id
+      - sender_id
+      - text
+      - created_at
+      type: object
+      properties:
+        id:
+          title: Id
+          type: string
+        sender_id:
+          title: Sender Id
+          type: string
+        text:
+          title: Text
+          type: string
+        created_at:
+          title: Created At
+          type: string
+          format: date-time
+    Coordinates-Base:
+      title: Coordinates
+      type: object
+      properties:
+        lat:
+          title: Lat
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          title: Lng
+          type: number
+          minimum: -180
+          maximum: 180
+      required:
+      - lat
+      - lng
+    Disaster:
+      title: Disaster
+      required:
+      - disaster_id
+      - type
+      - location
+      - description
+      type: object
+      properties:
+        disaster_id:
+          title: Disaster Id
+          type: string
+        type:
+          title: Type
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        description:
+          title: Description
+          type: string
+    DisasterCreate:
+      title: DisasterCreate
+      required:
+      - name
+      - description
+      - location
+      type: object
+      properties:
+        name:
+          title: Name
+          type: string
+        description:
+          title: Description
+          type: string
+        location:
+          $ref: '#/components/schemas/GeoPoint'
+        image_urls:
+          title: Image Urls
+          type: array
+          items:
+            type: string
+        type:
+          title: Type
+          type: string
+          x-nullable: true
+        severity:
+          title: Severity
+          type: string
+          x-nullable: true
+        affected_count:
+          title: Affected Count
+          type: integer
+          x-nullable: true
+    DisasterResponse:
+      title: DisasterResponse
+      allOf:
+      - $ref: '#/components/schemas/DisasterCreate'
+      - type: object
+        required:
+        - id
+        - created_at
+        - created_by
+        - chat_session_id
+        properties:
+          id:
+            title: Id
+            type: string
+          created_at:
+            title: Created At
+            type: string
+            format: date-time
+          created_by:
+            title: Created By
+            type: string
+          chat_session_id:
+            title: Chat Session Id
+            type: string
+    GeoPoint:
+      title: GeoPoint
+      required:
+      - lat
+      - lng
+      type: object
+      properties:
+        lat:
+          title: Lat
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          title: Lng
+          type: number
+          minimum: -180
+          maximum: 180
+    JoinedResponse:
+      title: JoinedResponse
+      required:
+      - joined
+      type: object
+      properties:
+        joined:
+          title: Joined
+          type: boolean
+    Location:
+      title: Location
+      type: object
+      properties:
+        lat:
+          title: Lat
+          type: number
+          minimum: -90
+          maximum: 180
+        lng:
+          title: Lng
+          type: number
+          minimum: -180
+          maximum: 180
+    ObservationCreate:
+      title: ObservationCreate
+      required:
+      - disaster_id
+      - title
+      - description
+      - observation_type
+      - urgency
+      - address
+      - image_urls
+      type: object
+      properties:
+        disaster_id:
+          title: Disaster Id
+          description: ID of the related disaster event
+          type: string
+        title:
+          title: Title
+          type: string
+        description:
+          title: Description
+          type: string
+        observation_type:
+          title: Observation Type
+          type: string
+        urgency:
+          title: Urgency
+          type: string
+        latitude:
+          title: Latitude
+          type: number
+          x-nullable: true
+        longitude:
+          title: Longitude
+          type: number
+          x-nullable: true
+        address:
+          title: Address
+          type: string
+        image_urls:
+          title: Image Urls
+          type: array
+          items:
+            type: string
+    ObservationResponse:
+      title: ObservationResponse
+      allOf:
+      - $ref: '#/components/schemas/ObservationCreate'
+      - type: object
+        required:
+        - id
+        - created_by
+        - created_at
+        properties:
+          id:
+            title: Id
+            type: string
+          created_by:
+            title: Created By
+            type: string
+          created_at:
+            title: Created At
+            type: string
+            format: date-time
+    Request:
+      title: Request
+      required:
+      - disaster_id
+      - type_of_need
+      - location
+      - id
+      - created_by
+      - status
+      - created_at
+      - updated_at
+      type: object
+      properties:
+        disaster_id:
+          title: Disaster Id
+          example: disaster_1234
+          type: string
+        type_of_need:
+          title: Type Of Need
+          examples:
+          - food
+          - medical
+          - rescue
+          - other
+          type: string
+        description:
+          title: Description
+          description: Optional detailed description of the request
+          type: string
+        media:
+          title: Media
+          description: List of metadata for each uploaded media
+          type: array
+          items:
+            $ref: '#/components/schemas/Media'
+        location:
+          $ref: '#/components/schemas/Location'
+        id:
+          title: Id
+          type: string
+        created_by:
+          title: Created By
+          type: string
+        status:
+          title: Status
+          default: open
+          type: string
+        assigned_task_id:
+          title: Assigned Task Id
+          type: string
+        created_at:
+          title: Created At
+          type: string
+          format: date-time
+        updated_at:
+          title: Updated At
+          type: string
+          format: date-time
+      description: ''
+      x-config:
+        orm_mode: true
+    RequestCreate:
+      title: RequestCreate
+      allOf:
+      - $ref: '#/components/schemas/RequestBase'
+    RequestStatusUpdate:
+      title: RequestStatusUpdate
+      required:
+      - status
+      type: object
+      properties:
+        status:
+          title: Status
+          examples:
+          - in_progress
+          - fulfilled
+          - closed
+          type: string
+        assigned_task_id:
+          title: Assigned Task Id
+          type: string
+    RequestBase:
+      title: RequestBase
+      required:
+      - disaster_id
+      - type_of_need
+      - location
+      type: object
+      properties:
+        disaster_id:
+          title: Disaster Id
+          description: Identifier for the associated disaster event
+          example: disaster_1234
+          type: string
+        type_of_need:
+          title: Type Of Need
+          examples:
+          - food
+          - medical
+          - rescue
+          - other
+          type: string
+        description:
+          title: Description
+          description: Optional detailed description of the request
+          type: string
+        media:
+          title: Media
+          description: List of metadata for each uploaded media
+          type: array
+          items:
+            $ref: '#/components/schemas/Media'
+        location:
+          $ref: '#/components/schemas/Location'
+    Resource:
+      title: Resource
+      required:
+      - category
+      - quantity_total
+      - quantity_available
+      - location_lat
+      - location_lng
+      - status
+      - resource_id
+      - uid
+      - role_id
+      - updated_at
+      type: object
+      properties:
+        category:
+          $ref: '#/components/schemas/ResourceType'
+        quantity_total:
+          title: Quantity Total
+          type: integer
+        quantity_available:
+          title: Quantity Available
+          type: integer
+        location_lat:
+          title: Location Lat
+          type: number
+        location_lng:
+          title: Location Lng
+          type: number
+        status:
+          $ref: '#/components/schemas/ResourceStatus'
+        resource_id:
+          title: Resource Id
+          type: string
+        uid:
+          title: Uid
+          type: string
+        role_id:
+          title: Role Id
+          type: string
+        updated_at:
+          title: Updated At
+          type: string
+          format: date-time
+      x-config:
+        orm_mode: true
+    ResourceCreate:
+      title: ResourceCreate
+      required:
+      - category
+      - quantity_total
+      - quantity_available
+      - location_lat
+      - location_lng
+      - status
+      - uid
+      type: object
+      properties:
+        category:
+          $ref: '#/components/schemas/ResourceType'
+        quantity_total:
+          title: Quantity Total
+          type: integer
+        quantity_available:
+          title: Quantity Available
+          type: integer
+        location_lat:
+          title: Location Lat
+          type: number
+        location_lng:
+          title: Location Lng
+          type: number
+        status:
+          $ref: '#/components/schemas/ResourceStatus'
+        uid:
+          title: Uid
+          type: string
+    ResourceStatus:
+      title: ResourceStatus
+      description: ''
+      enum:
+      - available
+      - not_available
+      type: string
+    ResourceType:
+      title: ResourceType
+      description: ''
+      enum:
+      - vehicle
+      - food
+      - medicine
+      - water
+      - clothing
+      - shelter
+      - rescue_equipment
+      - communication_device
+      - power_supply
+      - sanitation_kit
+      - fuel
+      - medical_kit
+      type: string
+    ResourceUpdate:
+      title: ResourceUpdate
+      type: object
+      properties:
+        quantity_used:
+          title: Quantity Used
+          type: integer
+      x-config:
+        orm_mode: true
+    State:
+      title: State
+      type: object
+      properties:
+        previous_action:
+          $ref: '#/components/schemas/Action'
+        next_action:
+          $ref: '#/components/schemas/Action'
+        request:
+          $ref: '#/components/schemas/Request_intake'
+        disaster:
+          $ref: '#/components/schemas/Disaster'
+        tasks:
+          title: Tasks
+          type: array
+          items:
+            $ref: '#/components/schemas/Task_agent'
+        task_allocations:
+          title: Task Allocations
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskAllocation'
+    StatusChangePayload:
+      title: StatusChangePayload
+      required:
+      - status
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ResourceStatus'
+    Task:
+      title: Task
+      required:
+      - source_request_id
+      - priority
+      - disaster_id
+      - is_authorized
+      - id
+      - status
+      - created_at
+      - updated_at
+      type: object
+      properties:
+        source_request_id:
+          title: Source Request Id
+          description: (Optional) ID of the original request that spawned this task
+          type: string
+        priority:
+          title: Priority
+          description: Task priority: 1=High, 2=Medium, 3=Low
+          type: integer
+          enum:
+          - 1
+          - 2
+          - 3
+          default: 3
+        instructions:
+          title: Instructions
+          type: string
+        role_required:
+          title: Role Required
+          description: Required role for the task
+          type: string
+          default: first_responder
+        resource_ids:
+          title: Resource Ids
+          description: List of inventory resource IDs linked to this task
+          type: array
+          items:
+            type: string
+        disaster_id:
+          title: Disaster Id
+          description: Identifier of the disaster this task belongs to
+          type: string
+        is_authorized:
+          title: Is Authorized
+          description: Whether the caller is authorized to view/modify this task
+          type: boolean
+          default: false
+        id:
+          title: Id
+          type: string
+        assigned_to:
+          title: Assigned To
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatusEnum'
+        eta_minutes:
+          title: Eta Minutes
+          type: integer
+        created_at:
+          title: Created At
+          type: string
+          format: date-time
+        updated_at:
+          title: Updated At
+          type: string
+          format: date-time
+      x-config:
+        orm_mode: true
+        extra: ignore
+    TaskCreate:
+      title: TaskCreate
+      allOf:
+      - $ref: '#/components/schemas/TaskBase'
+      - type: object
+        properties:
+          assigned_to:
+            title: Assigned To
+            description: UID of volunteer or responder to whom this task is assigned
+            type: string
+    TaskStatusEnum:
+      title: TaskStatusEnum
+      description: ''
+      enum:
+      - pending
+      - on_route
+      - completed
+      - failed
+      type: string
+    TaskStatusUpdate:
+      title: TaskStatusUpdate
+      required:
+      - status
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatusEnum'
+        eta_minutes:
+          title: Eta Minutes
+          description: Estimated time of arrival in minutes
+          type: integer
+          minimum: 0
+    TaskAssignPayload:
+      title: TaskAssignPayload
+      required:
+      - assigned_to
+      type: object
+      properties:
+        assigned_to:
+          title: Assigned To
+          type: string
+    TaskBase:
+      title: TaskBase
+      required:
+      - disaster_id
+      - is_authorized
+      type: object
+      properties:
+        source_request_id:
+          title: Source Request Id
+          description: (Optional) ID of the original request that spawned this task
+          type: string
+        priority:
+          title: Priority
+          description: Task priority: 1=High, 2=Medium, 3=Low
+          type: integer
+          enum:
+          - 1
+          - 2
+          - 3
+          default: 3
+        instructions:
+          title: Instructions
+          type: string
+        role_required:
+          title: Role Required
+          description: Required role for the task
+          type: string
+          default: first_responder
+        resource_ids:
+          title: Resource Ids
+          description: List of inventory resource IDs linked to this task
+          type: array
+          items:
+            type: string
+        disaster_id:
+          title: Disaster Id
+          description: Identifier of the disaster this task belongs to
+          type: string
+        is_authorized:
+          title: Is Authorized
+          description: Whether the caller is authorized to view/modify this task
+          type: boolean
+          default: false
+    TaskAllocation:
+      title: TaskAllocation
+      type: object
+      properties: {}
+    User:
+      title: User
+      required:
+      - uid
+      - email
+      - role_id
+      type: object
+      properties:
+        uid:
+          title: Uid
+          type: string
+        email:
+          title: Email
+          type: string
+        display_name:
+          title: Display Name
+          type: string
+        role_id:
+          title: Role Id
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        created_at:
+          title: Created At
+          type: string
+          format: date-time
+        availability:
+          title: Availability
+          type: boolean
+        location:
+          $ref: '#/components/schemas/Coordinates-Output'
+    UserCreate:
+      title: UserCreate
+      required:
+      - display_name
+      type: object
+      properties:
+        display_name:
+          title: Display Name
+          type: string
+        role_id:
+          title: Role Id
+          type: string
+    User_chatbot:
+      title: User
+      required:
+      - id
+      - name
+      - role
+      - location
+      type: object
+      properties:
+        id:
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+        role:
+          title: Role
+          type: string
+        location:
+          $ref: '#/components/schemas/Coordinates-Base'
+    Request_intake:
+      title: Request
+      type: object
+      properties:
+        disaster_id:
+          title: Disaster Id
+          type: string
+        description:
+          title: Description
+          type: string
+    Task_agent:
+      title: Task
+      required:
+      - id
+      - instructions
+      - urgency
+      type: object
+      properties:
+        id:
+          title: Id
+          type: string
+        instructions:
+          title: Instructions
+          type: string
+        urgency:
+          title: Urgency
+          type: string
+    Role:
+      title: Role
+      required:
+      - id
+      - name
+      - permissions
+      type: object
+      properties:
+        id:
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+        permissions:
+          title: Permissions
+          type: array
+          items:
+            type: string
+    Media:
+      title: Media
+      required:
+      - url
+      - file_id
+      type: object
+      properties:
+        url:
+          title: Url
+          description: CDN URL of the uploaded media
+          type: string
+        file_id:
+          title: File Id
+          description: ImageKit file identifier
+          type: string
+        name:
+          title: Name
+          description: Original file name
+          type: string
+        size:
+          title: Size
+          description: Size in bytes
+          type: integer
+        width:
+          title: Width
+          description: Pixel width
+          type: integer
+        height:
+          title: Height
+          description: Pixel height
+          type: integer

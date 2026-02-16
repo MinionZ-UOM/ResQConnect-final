@@ -1,0 +1,53 @@
+# ResQConnect API request samples
+#
+# This file can be used with REST clients that understand the ``.http`` format
+# (VS Code REST Client extension, JetBrains HTTP client, etc.).
+# Update the ``baseUrl`` variable below to point at your running backend
+# instance, then execute the desired request block.
+
+@baseUrl = http://localhost:8000
+@authToken = {{YOUR_AUTH_TOKEN_HERE}}
+
+### Chatbot: Generate a response
+POST {{baseUrl}}/chatbot/ask
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "prompt": "Provide evacuation guidance for a coastal flood affecting downtown.",
+  "chat_history": [
+    {
+      "role": "user",
+      "content": "What is the current flood status in the bay area?"
+    },
+    {
+      "role": "assistant",
+      "content": "The bay is experiencing moderate flooding with road closures near the docks."
+    }
+  ],
+  "user": {
+    "id": "responder-42",
+    "name": "Alex Morgan",
+    "role": "Logistics Coordinator",
+    "location": {
+      "latitude": 37.8044,
+      "longitude": -122.2712
+    }
+  }
+}
+
+### Template: Generic GET request
+# Duplicate this block and adjust the HTTP method, path, and headers
+# to exercise other endpoints exposed by the backend.
+GET {{baseUrl}}/openapi.json
+Authorization: Bearer {{authToken}}
+
+### Template: Generic JSON POST request
+# Replace ``/path`` and the body with endpoint-specific values when testing.
+POST {{baseUrl}}/path
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "example": "value"
+}

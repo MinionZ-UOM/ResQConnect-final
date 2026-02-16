@@ -1,0 +1,77 @@
+name: CI/CD to EC2
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Configure AWS creds for pushing to ECR
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to ECR
+        env:
+          USE_DOCKER_NO_CACHE: ${{ secrets.USE_DOCKER_NO_CACHE }}
+        run: |
+          IMAGE_TAG=latest
+          if [ "${USE_DOCKER_NO_CACHE}" = "true" ]; then
+            NO_CACHE_ARG="--no-cache"
+            echo "Building Docker image with --no-cache"
+          else
+            NO_CACHE_ARG=""
+            echo "Building Docker image using build cache"
+          fi
+          docker build ${NO_CACHE_ARG} -t ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG .
+          docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:$IMAGE_TAG
+
+      # Upload docker-compose.yml to EC2
+      - name: Copy docker-compose.yml to EC2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/${{ secrets.EC2_USER }}/"
+
+      - name: SSH into EC2 and deploy
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.EC2_USER }}
+      
+            # Recreate .env file from GitHub secret
+            echo "${{ secrets.APP_ENV_VARS }}" > .env
+      
+            # Recreate firebase_cred.json from GitHub secret
+            mkdir -p app/secrets
+            echo '${{ secrets.FIREBASE_CRED_JSON }}' > app/secrets/firebase_cred.json
+      
+            # Log in to ECR before pulling images
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+              sudo docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+      
+            # Deploy containers with sudo
+            sudo docker-compose down
+            sudo docker-compose pull
+            sudo docker-compose up -d
+            sudo docker image prune -f
