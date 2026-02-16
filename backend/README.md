@@ -103,7 +103,7 @@
 
 ---
 
-## Setting up Celery with Redis (Manual)
+## Setting up Celery with Redis
 
 This project uses [Celery](https://docs.celeryq.dev/en/stable/) for asynchronous task processing and [Redis](https://redis.io/) as the message broker.
 
