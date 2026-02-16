@@ -8,6 +8,30 @@ The codebase is organized into three main components:
 -   **`frontend/`**: A modern web interface built with Next.js and Tailwind CSS for users and administrators.
 -   **`mobile/`**: A cross-platform mobile application developed with Flutter for on-the-go access.
 
+## Architecture
+
+```mermaid
+graph TD
+    UserWeb[("User (Web)")] -->|HTTP / Next.js| Frontend["Frontend (Web)"]
+    UserMobile[("User (Mobile)")] -->|Flutter App| Mobile["Mobile App"]
+    
+    Frontend -->|REST API| Backend["Backend API (FastAPI)"]
+    Mobile -->|REST API| Backend
+    
+    subgraph "Backend Infrastructure"
+        Backend -->|Reads/Writes| Firestore[("Firestore DB")]
+        Backend -->|Enqueues Task| Redis[("Redis Broker")]
+        Redis -->|Pulls Task| Worker["Celery Worker"]
+    end
+    
+    subgraph "External AI Services"
+        Worker -->|LLM Calls| OpenAI["OpenAI API"]
+        Worker -->|Tracing| Langfuse["Langfuse"]
+    end
+
+    Worker -->|Updates| Firestore
+```
+
 ## Tech Stack
 
 ### Backend
@@ -67,6 +91,14 @@ cd backend
 ```bash
 docker-compose up --build
 ```
+
+**Running Celery Worker:**
+1.  Ensure Redis is running and accessible.
+2.  From the `backend` directory, run:
+    ```bash
+    celery -A app.celery_config.celery_app worker --loglevel=info --pool=solo
+    ```
+    *(Note: `--pool=solo` is recommended for Windows environments. For Linux/Mac, you can omit it or use `--pool=prefork`)*.
 
 ### 2. Frontend Setup
 
