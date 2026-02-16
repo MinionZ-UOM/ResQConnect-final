@@ -1,6 +1,8 @@
 # ResQConnect
 ResQConnect is an end-to-end, agentic disaster-response decision support system that turns incoming citizen requests into actionable guidance and allocations of emergency resources. It combines an agentic RAG pipeline (to retrieve and synthesise verified SOPs and local knowledge into safe, context-aware recommendations), a dynamic routing/dispatch optimisation layer (to prioritise incidents and assign responders under changing constraints) and an edge/offline component (so core guidance remains available when connectivity is limited). The goal is to improve timeliness, safety and consistency of response decisions while keeping outputs under human supervision .
 
+https://savinimz.github.io/ResQConnect-docs/
+
 ## Project Structure
 
 The codebase is organized into three main components:
