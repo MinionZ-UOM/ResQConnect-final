@@ -156,7 +156,7 @@ Each component requires specific environment variables. Create a `.env` file in 
 ### Backend (`backend/.env`)
 ```env
 GOOGLE_APPLICATION_CREDENTIALS=path/to/firebase_cred.json
-GROQ_API_KEY=your_groq_api_key
+OpenAI_API_KEY=your_openai_api_key
 LANGFUSE_SECRET_KEY=your_langfuse_secret
 LANGFUSE_PUBLIC_KEY=your_langfuse_public
 LANGFUSE_HOST=https://cloud.langfuse.com
