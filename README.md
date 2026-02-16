@@ -88,9 +88,19 @@ cd backend
     ```
 
 **Docker Setup:**
-```bash
-docker-compose up --build
-```
+
+1.  **Setup Secrets**:
+    *   Create a directory: `backend/app/secrets/` inside the `backend` folder.
+    *   Place your `firebase_cred.json` in this directory.
+    *   *Critical: Docker mounts this file into the container to allow Firestore access.*
+
+2.  **Configure Environment**:
+    *   Ensure your `backend/.env` file is created (see [Environment Configuration](#environment-configuration)).
+
+3.  **Run Services**:
+    ```bash
+    docker-compose up --build
+    ```
 
 **Running Celery Worker:**
 1.  Ensure Redis is running and accessible.
@@ -152,6 +162,16 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 ```
 
 ### Frontend (`frontend/.env.local`)
-Refer to `frontend/README.md` or source code for specific keys required (e.g., Firebase config).
+Create a `.env.local` file in the `frontend` directory with the following variables:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_API=http://localhost:8000
+```
 
 ---
