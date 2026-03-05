@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Filter as FilterIcon, RotateCcw } from "lucide-react";
 import { useDashboardDisasters } from "@/context/dashboard-disaster-context";
 import { useToast } from "@/components/ui/use-toast";
@@ -15,6 +16,10 @@ import {
   fetchAdminSuggestions,
 } from "@/services/adminSuggestionsService";
 import { ResourceSuggestionCard } from "../components/resource-suggestion-card";
+import { AdminKpiStrip } from "../components/admin-kpi-strip";
+import { AdminDistributionToolbar } from "../components/admin-distribution-toolbar";
+import { AdminSupplySnapshot } from "../components/admin-supply-snapshot";
+import { AdminRequestDetailsDialog } from "../components/admin-request-details-dialog";
 import { updateWorkflowResource, deleteWorkflowResource } from "@/services/workflowOutputService";
 import type { AdminSuggestionsData } from "@/services/adminSuggestionsService";
 import type { ApprovalStatus, WorkflowResource, WorkflowResourceUpdatePayload } from "@/lib/types/workflow";
@@ -31,6 +36,9 @@ export default function AdminResourcesTab() {
   const [savingResourceId, setSavingResourceId] = useState<string | null>(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const [deletingResourceId, setDeletingResourceId] = useState<string | null>(null);
+  const [isAutoPlan, setIsAutoPlan] = useState(false);
+  const [isSnapshotOpen, setIsSnapshotOpen] = useState(true);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   const { disasters } = useDashboardDisasters();
   const { toast } = useToast();
@@ -97,9 +105,41 @@ export default function AdminResourcesTab() {
     return map;
   }, [filteredResources]);
 
+  const kpis = useMemo(() => {
+    const totalRequests = requests.length;
+    const totalSuggestedResources = resourceRows.length;
+    const pendingResources = resourceRows.filter((r) => r.resource.approvalStatus === "pending").length;
+    const approvedResources = resourceRows.filter((r) => r.resource.approvalStatus === "approved").length;
+    const rejectedResources = resourceRows.filter((r) => r.resource.approvalStatus === "rejected").length;
+
+    const requestsWithPending = new Set(
+      resourceRows.filter((r) => r.resource.approvalStatus === "pending").map((r) => r.requestId)
+    ).size;
+
+    const filteredResults = filteredResources.length;
+
+    return {
+      totalRequests,
+      totalSuggestedResources,
+      pendingResources,
+      approvedResources,
+      rejectedResources,
+      requestsWithPending,
+      filteredResults,
+    };
+  }, [requests.length, resourceRows, filteredResources.length]);
+
   const resetFilters = () => {
     setDisasterFilter("All");
     setStatusFilter("All");
+  };
+
+  const handleAutoPlanToggle = (checked: boolean) => {
+    setIsAutoPlan(checked);
+    toast({
+      title: "Activated",
+      description: "Automatic Planning Activated",
+    });
   };
 
   type UpdateResourceVariables = {
@@ -276,6 +316,12 @@ export default function AdminResourcesTab() {
       </CardHeader>
 
       <CardContent className="space-y-8">
+        {/* KPI Strip & Distribution Planning Toolbar */}
+        <div className="flex flex-col xl:flex-row gap-4">
+          <AdminKpiStrip kpis={kpis} />
+          <AdminDistributionToolbar isAutoPlan={isAutoPlan} onAutoPlanToggle={handleAutoPlanToggle} />
+        </div>
+
         <Card className="border">
           <CardHeader className="py-4">
             <div className="flex items-center justify-between">
@@ -326,6 +372,8 @@ export default function AdminResourcesTab() {
           </CardContent>
         </Card>
 
+        <AdminSupplySnapshot isOpen={isSnapshotOpen} onOpenChange={setIsSnapshotOpen} />
+
         {[...groupedResources.entries()].map(([requestId, rows]) => {
           const request = requestById.get(requestId);
           if (!request) return null;
@@ -340,14 +388,40 @@ export default function AdminResourcesTab() {
             ? disasterNames.get(request.disasterId) ?? request.disasterId
             : "—";
 
+          const hasPending = rows.some((r) => r.approvalStatus === "pending");
+          const allApproved = rows.every((r) => r.approvalStatus === "approved");
+          const allRejected = rows.every((r) => r.approvalStatus === "rejected");
+
+          let planStatus = "Mixed";
+          let badgeColor = "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/50";
+
+          if (hasPending) {
+            planStatus = "Needs Review";
+            badgeColor = "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50";
+          } else if (allApproved) {
+            planStatus = "Ready";
+            badgeColor = "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50";
+          } else if (allRejected) {
+            planStatus = "Rejected";
+            badgeColor = "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50";
+          }
+
           return (
             <Card key={requestId} className="border overflow-hidden rounded-xl shadow-sm">
               <div className="h-1 w-full bg-violet-400" />
-              <CardHeader className="pb-3">
+              <CardHeader
+                className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setSelectedRequestId(requestId)}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-xl">{request.title}</CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      <CardTitle className="text-xl">{request.title}</CardTitle>
+                      <Badge variant="secondary" className={`pointer-events-none ${badgeColor}`}>
+                        {planStatus}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-sm text-muted-foreground mt-1">
                       {disasterName} · {locationText}
                     </CardDescription>
                   </div>
@@ -381,6 +455,31 @@ export default function AdminResourcesTab() {
           </div>
         )}
       </CardContent>
+
+      {(() => {
+        const selectedRequest = selectedRequestId ? requestById.get(selectedRequestId) ?? null : null;
+        const selectedRows = selectedRequestId ? groupedResources.get(selectedRequestId) ?? [] : [];
+
+        const selectedDisasterName = selectedRequest?.disasterId
+          ? disasterNames.get(selectedRequest.disasterId) ?? selectedRequest.disasterId
+          : "—";
+        const selectedLocationText = selectedRequest?.location?.address
+          ? selectedRequest.location.address
+          : selectedRequest?.location?.lat && selectedRequest?.location?.lng
+            ? `(${selectedRequest.location.lat.toFixed(4)}, ${selectedRequest.location.lng.toFixed(4)})`
+            : "—";
+
+        return (
+          <AdminRequestDetailsDialog
+            isOpen={!!selectedRequestId}
+            onOpenChange={(open) => !open && setSelectedRequestId(null)}
+            request={selectedRequest}
+            resources={selectedRows}
+            disasterName={selectedDisasterName}
+            locationText={selectedLocationText}
+          />
+        );
+      })()}
     </Card>
   );
 }
