@@ -37,7 +37,7 @@ export default function AdminResourcesTab() {
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
   const [deletingResourceId, setDeletingResourceId] = useState<string | null>(null);
   const [isAutoPlan, setIsAutoPlan] = useState(false);
-  const [isSnapshotOpen, setIsSnapshotOpen] = useState(false);
+  const [isSnapshotOpen, setIsSnapshotOpen] = useState(true);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
 
   const { disasters } = useDashboardDisasters();
