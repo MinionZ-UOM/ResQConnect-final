@@ -41,9 +41,43 @@ export function AdminDistributionToolbar({
                 description: "Strategic_Distribution_Plan_v2.4.pdf is downloading.",
             });
             // Mock download action for visual effect
+            const operationsPlan = `
+Operational Dispatch Actions
+
+Routing Policy: AET
+Load Condition: HIGH
+Priority Weighted Response Time: 165
+Solver Calls: 11
+System Nervousness: 4
+Trigger Precision: 0.063
+Fuel Savings: 18.4%
+Turnaround Improvement: -28 minutes
+Logistics Integrity Score: 97
+
+Dispatch Actions
+
+Convoy Reroute
+Origin: Sector B
+Destination: Zone A
+Convoys Redirected: 4
+Priority Level: HIGH
+Estimated Arrival Time: 12 minutes
+
+Drone Supply Deployment
+Resource: Thermal Blankets
+Quantity: 5,000
+Delivery Mode: Autonomous Drone Fleet
+Target Area: Isolated Disaster Quadrants
+
+Operational Ratings
+
+Feasibility Under Peak Load: HIGH
+Operational Stability: HIGH
+            `.trim();
+
             const link = document.createElement('a');
-            link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent('AI Logistics Plan (Dummy Data)');
-            link.download = 'Strategic_Distribution_Plan_v2.4.txt';
+            link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(operationsPlan);
+            link.download = 'Operations_Manifest_AET_HIGH.txt';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -85,16 +119,16 @@ export function AdminDistributionToolbar({
             <Dialog open={showAllocationPlan} onOpenChange={setShowAllocationPlan}>
                 <DialogContent className="max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>AI Allocation Simulation Insights</DialogTitle>
+                        <DialogTitle>Allocation Simulation Insights</DialogTitle>
                         <DialogDescription>
                             Heuristic routing optimization complete. Real-time dynamic allocations structured below.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="p-4 border rounded-md bg-muted/20 space-y-3">
-                            <h4 className="font-semibold text-sm">Zone A Priority Overwrite</h4>
+                            <h4 className="font-semibold text-sm">Zone A Priority Override</h4>
                             <p className="text-sm text-muted-foreground">
-                                Critical resource shortage detected in Zone A. Intercepting 4 transport convoys from Sector B. Projected ETA: 12 minutes.
+                                Critical medical supply shortage detected in Zone A. The system triggers an event-based routing update, intercepting 4 transport convoys from Sector B and redirecting them to Zone A. Estimated arrival time after reroute: 12 minutes.
                             </p>
                             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                                 <div className="h-full bg-blue-500 w-[78%]"></div>
@@ -104,7 +138,7 @@ export function AdminDistributionToolbar({
                         <div className="p-4 border rounded-md bg-muted/20 space-y-3">
                             <h4 className="font-semibold text-sm">Automated Supply Rebalancing</h4>
                             <p className="text-sm text-muted-foreground">
-                                Deployed autonomous drone fleet to deliver 5,000 thermal blankets to isolated quadrants. Operational efficiency preserved.
+                                Autonomous logistics drones deployed to deliver 5,000 thermal blankets to isolated quadrants. Rebalancing completed while maintaining low system nervousness and stable routing.
                             </p>
                             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                                 <div className="h-full bg-green-500 w-[100%]"></div>
@@ -113,16 +147,16 @@ export function AdminDistributionToolbar({
 
                         <div className="grid grid-cols-3 gap-2 text-center pt-2">
                             <div className="border p-3 rounded-md shadow-sm bg-background">
-                                <div className="text-xs text-muted-foreground">Fuel Optimization</div>
-                                <div className="font-bold text-lg">18.4% Save</div>
+                                <div className="text-xs text-muted-foreground">Priority Response Time</div>
+                                <div className="font-bold text-lg">165 mins</div>
                             </div>
                             <div className="border p-3 rounded-md shadow-sm bg-background">
-                                <div className="text-xs text-muted-foreground">Turnaround Time</div>
-                                <div className="font-bold text-lg text-green-600">-28 Mins Avg</div>
+                                <div className="text-xs text-muted-foreground">System Nervousness</div>
+                                <div className="font-bold text-lg text-green-600">4 Instability</div>
                             </div>
                             <div className="border p-3 rounded-md shadow-sm bg-background">
-                                <div className="text-xs text-muted-foreground">Logistics Integrity</div>
-                                <div className="font-bold text-lg text-blue-600">97/100</div>
+                                <div className="text-xs text-muted-foreground">Trigger Precision</div>
+                                <div className="font-bold text-lg text-blue-600">6.3%</div>
                             </div>
                         </div>
                     </div>
