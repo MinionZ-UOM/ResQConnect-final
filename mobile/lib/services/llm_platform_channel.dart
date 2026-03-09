@@ -59,7 +59,7 @@ class LlmPlatformChannel {
       return response;
     } catch (error) {
       errorMessage = error.toString();
-      return '';
+      return errorMessage;
     } finally {
       stopwatch.stop();
       final int memoryAfterBytes = ProcessInfo.currentRss;

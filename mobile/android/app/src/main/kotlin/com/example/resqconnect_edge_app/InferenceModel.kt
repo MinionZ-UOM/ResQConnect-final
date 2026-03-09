@@ -58,10 +58,38 @@ class InferenceModel private constructor(context: Context) {
         return llmInferenceSession.generateResponseAsync(progressListener)
     }
 
+    fun resetSession() {
+        try {
+            llmInferenceSession.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error closing session: ${e.message}")
+        }
+        createSession()
+        Log.d(TAG, "Session reset successfully")
+    }
+
+    fun closeModel() {
+        try {
+            llmInferenceSession.close()
+            llmInference.close()
+            Log.d(TAG, "Model closed successfully")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error closing model: ${e.message}")
+        }
+    }
+
     companion object {
         private var instance: InferenceModel? = null
         fun getInstance(context: Context): InferenceModel {
             return instance ?: InferenceModel(context).also { instance = it }
+        }
+        fun resetInstance(context: Context) {
+            try {
+                instance?.closeModel()
+            } catch (e: Exception) {
+                Log.w(InferenceModel::class.qualifiedName, "Error resetting instance: ${e.message}")
+            }
+            instance = null
         }
         fun modelExists(context: Context): Boolean {
             val path = Model.QWEN2_0_5B_INSTRUCT.path

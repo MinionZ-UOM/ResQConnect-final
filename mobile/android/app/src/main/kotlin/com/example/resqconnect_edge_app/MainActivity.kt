@@ -51,6 +51,8 @@ class MainActivity : FlutterActivity() {
                     runBlocking {
                         val res = responseFuture?.get() ?: ""
                         result.success(res)
+                        // Reset session after each query for fresh inference
+                        modelInstance?.resetSession()
                     }
                 }
                 "getPublicDownloadsDirectory" -> {

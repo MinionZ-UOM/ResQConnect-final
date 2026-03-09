@@ -17,50 +17,13 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<_ChatMessage> _messages = [];
   bool _isThinking = false;
   final ScrollController _scrollController = ScrollController();
-  
-  // SCRIPTED DEMO DATA
-  int _scriptIndex = 0;
-  final List<Map<String, String>> _demoScript = [
-    {
-      "user": "There is a flood warning in my area, what should I do?",
-      "bot": "I understand this is stressful. First, are you currently indoors or outdoors? And do you see any rising water near your location?"
-    },
-    {
-      "user": "I am inside, the water is rising on the street but hasn't entered the house yet.",
-      "bot": "Okay. Please turn off your main power and gas if you can do so safely. Move essential items and yourself to the highest floor. Do NOT walk through moving water. Do you have an emergency kit ready?"
-    },
-    {
-      "user": "Yes, I have some water and a flashlight.",
-      "bot": "That is good. Keep your phone charged and stay tuned to local news. If the water level rises significantly, prepare to move to the roof, but only if necessary. Do not go into the attic unless it has an open window. Stay safe."
-    },
-    {
-      "user": "Thank you, I will stay upstairs.",
-      "bot": "You're welcome. Access my 'Help' menu if you need to send an SOS signal or share your location with authorities. Stay alert."
-    }
-  ];
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill the first question for the demo
-    _loadNextScriptStep();
-  }
-
-  void _loadNextScriptStep() {
-    if (_scriptIndex < _demoScript.length) {
-      _controller.text = _demoScript[_scriptIndex]['user']!;
-    } else {
-      _controller.text = ""; // Script finished
-    }
   }
 
   void _sendMessage() async {
-    // For the demo, we ignore what was typed if it doesn't match, 
-    // OR we just use the current text if the user edited it.
-    // But to ensure the "Hardcoded User Question" requirement is met, 
-    // we essentially play the script step regardless of minor edits, 
-    // OR we assume the user hits send on the pre-filled text.
-    
     final userText = _controller.text.trim();
     if (userText.isEmpty) return;
 
@@ -72,35 +35,38 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _scrollToBottom();
 
-    // SCRIPTED RESPONSE LOGIC
     try {
-      await Future.delayed(const Duration(seconds: 2));
+      print('DEBUG: Checking if model is downloaded...');
+      bool isDownloaded = await LlmPlatformChannel.isModelDownloaded();
+      print('DEBUG: Model downloaded: $isDownloaded');
       
-      String responseText;
-      if (_scriptIndex < _demoScript.length) {
-        responseText = _demoScript[_scriptIndex]['bot']!;
-        _scriptIndex++; // Advance to next step
-      } else {
-        responseText = "Demo conversation complete. Please restart the app to reset the simulation.";
+      if (!isDownloaded) {
+        if (mounted) {
+          setState(() {
+            _messages.add(_ChatMessage('Model not downloaded. Please download the model first.', false));
+            _isThinking = false;
+          });
+        }
+        return;
       }
-
-      setState(() {
-        _messages.add(_ChatMessage(responseText, false));
-      });
       
-      // Auto-fill next user question
-      _loadNextScriptStep();
+      print('DEBUG: Generating response for: $userText');
+      String responseText = await LlmPlatformChannel.generateResponse(userText);
+      print('DEBUG: Got response: $responseText');
 
-    } catch (e) {
-      setState(() {
-        _messages.add(_ChatMessage('Error: $e', false));
-      });
-    } finally {
       if (mounted) {
         setState(() {
+          _messages.add(_ChatMessage(responseText, false));
           _isThinking = false;
         });
-        _scrollToBottom();
+      }
+    } catch (e) {
+      print('DEBUG: Error in _sendMessage: $e');
+      if (mounted) {
+        setState(() {
+          _messages.add(_ChatMessage('Error: $e', false));
+          _isThinking = false;
+        });
       }
     }
   }
