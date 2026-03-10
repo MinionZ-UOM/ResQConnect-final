@@ -317,7 +317,7 @@ export default function AdminResourcesTab() {
 
       <CardContent className="space-y-8">
         {/* KPI Strip & Distribution Planning Toolbar */}
-        <div className="flex flex-col xl:flex-row gap-4">
+        <div className="flex flex-col gap-4">
           <AdminKpiStrip kpis={kpis} />
           <AdminDistributionToolbar isAutoPlan={isAutoPlan} onAutoPlanToggle={handleAutoPlanToggle} />
         </div>
