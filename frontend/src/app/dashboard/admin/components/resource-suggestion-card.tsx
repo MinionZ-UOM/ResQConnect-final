@@ -10,9 +10,9 @@ import { Package, Save, Pencil, X, Trash2, Check, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const statusStyles: Record<ApprovalStatus, string> = {
-  pending: "bg-amber-50 text-amber-700 border-amber-200",
-  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  rejected: "bg-rose-50 text-rose-700 border-rose-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
+  approved: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700",
+  rejected: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700",
 };
 
 type Props = {
@@ -103,31 +103,31 @@ export function ResourceSuggestionCard({
   }
 
   return (
-    <div className="rounded-lg border bg-card text-card-foreground p-4 space-y-4">
+    <div className="rounded-xl border-2 bg-card text-card-foreground p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center">
-              <Package className="h-5 w-5 text-slate-600" />
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <Package className="h-6 w-6 text-slate-600 dark:text-slate-300" />
             </div>
             <div>
-              <h3 className="text-base font-semibold">{resource.type}</h3>
-              <p className="text-xs text-muted-foreground">Total quantity: {resource.totalQuantity}</p>
+              <h3 className="text-lg font-bold">{resource.type}</h3>
+              <p className="text-sm text-muted-foreground">Total quantity: <span className="font-semibold text-foreground">{resource.totalQuantity}</span></p>
             </div>
           </div>
         </div>
 
-        <Badge className={cn("border", statusStyles[resource.approvalStatus])}>
+        <Badge className={cn("border text-sm px-3 py-1", statusStyles[resource.approvalStatus])}>
           {resource.approvalStatus.charAt(0).toUpperCase() + resource.approvalStatus.slice(1)}
         </Badge>
       </div>
 
       {(resource.substitutionFor || resource.quantity) && (
-        <div className="grid gap-2 text-sm text-muted-foreground">
-          {resource.quantity && <div><span className="font-medium text-slate-700">Unit:</span> {resource.quantity}</div>}
+        <div className="grid gap-2 text-sm">
+          {resource.quantity && <div><span className="font-semibold">Unit:</span> <span className="text-muted-foreground">{resource.quantity}</span></div>}
           {resource.substitutionFor && (
             <div>
-              <span className="font-medium text-slate-700">Substitution for:</span> {resource.substitutionFor}
+              <span className="font-semibold">Substitution for:</span> <span className="text-muted-foreground">{resource.substitutionFor}</span>
             </div>
           )}
         </div>
@@ -135,12 +135,12 @@ export function ResourceSuggestionCard({
 
       {breakdown.length > 0 && (
         <div className="space-y-2">
-          <Label className="text-sm text-slate-700">Suggested allocation</Label>
-          <ul className="space-y-1 text-sm text-slate-700">
+          <Label className="text-sm font-semibold">Suggested Allocation</Label>
+          <ul className="space-y-1.5">
             {breakdown.map((item) => (
-              <li key={`${resource.id}-${item.taskId}`} className="flex items-center justify-between">
+              <li key={`${resource.id}-${item.taskId}`} className="flex items-center justify-between text-sm bg-muted/20 rounded-lg px-3 py-2">
                 <span className="truncate pr-2">{item.taskName}</span>
-                <span className="font-medium">×{item.quantity}</span>
+                <span className="font-bold text-base">×{item.quantity}</span>
               </li>
             ))}
           </ul>
@@ -148,15 +148,16 @@ export function ResourceSuggestionCard({
       )}
 
       {isEditing && (
-        <div className="space-y-3 border-t pt-3">
+        <div className="space-y-4 border-t pt-4">
           <div className="grid gap-2">
-            <Label className="text-sm">Type</Label>
-            <Input value={draft.type} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))} />
+            <Label className="text-sm font-medium">Type</Label>
+            <Input className="h-11" value={draft.type} onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value }))} />
           </div>
 
           <div className="grid gap-2">
-            <Label className="text-sm">Total quantity</Label>
+            <Label className="text-sm font-medium">Total quantity</Label>
             <Input
+              className="h-11"
               type="number"
               min={0}
               value={draft.totalQuantity}
@@ -165,8 +166,9 @@ export function ResourceSuggestionCard({
           </div>
 
           <div className="grid gap-2">
-            <Label className="text-sm">Unit / Notes</Label>
+            <Label className="text-sm font-medium">Unit / Notes</Label>
             <Input
+              className="h-11"
               value={draft.quantity ?? ""}
               onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value || undefined }))}
               placeholder="e.g., boxes, kits"
@@ -174,8 +176,9 @@ export function ResourceSuggestionCard({
           </div>
 
           <div className="grid gap-2">
-            <Label className="text-sm">Substitution for</Label>
+            <Label className="text-sm font-medium">Substitution for</Label>
             <Input
+              className="h-11"
               value={draft.substitutionFor ?? ""}
               onChange={(e) => setDraft((d) => ({ ...d, substitutionFor: e.target.value || undefined }))}
               placeholder="Optional"
@@ -184,13 +187,13 @@ export function ResourceSuggestionCard({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 justify-between border-t pt-3">
+      <div className="flex flex-wrap items-center gap-3 justify-between border-t pt-4">
         <div className="flex items-center gap-2">
           {!isEditing ? (
             <Button
               variant="outline"
-              size="sm"
-              className="gap-1"
+              size="default"
+              className="gap-2"
               onClick={() => setIsEditing(true)}
               disabled={isSaving || isStatusUpdating || isDeleting}
             >
@@ -200,8 +203,8 @@ export function ResourceSuggestionCard({
           ) : (
             <div className="flex items-center gap-2">
               <Button
-                size="sm"
-                className="gap-1"
+                size="default"
+                className="gap-2"
                 onClick={handleSave}
                 disabled={isSaving || isStatusUpdating || isDeleting}
               >
@@ -210,8 +213,8 @@ export function ResourceSuggestionCard({
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
-                className="gap-1"
+                size="default"
+                className="gap-2"
                 onClick={() => {
                   setDraft(resource);
                   setIsEditing(false);
@@ -224,8 +227,8 @@ export function ResourceSuggestionCard({
               {onDelete && (
                 <Button
                   variant="destructive"
-                  size="sm"
-                  className="gap-1"
+                  size="default"
+                  className="gap-2"
                   onClick={handleDelete}
                   disabled={isDeleting || isSaving || isStatusUpdating}
                 >
@@ -240,8 +243,8 @@ export function ResourceSuggestionCard({
         {resource.approvalStatus === "pending" && onStatusChange && (
           <div className="flex items-center gap-2">
             <Button
-              size="sm"
-              className="gap-1"
+              size="default"
+              className="gap-2"
               onClick={() => handleStatusChange("approved")}
               disabled={isStatusUpdating || isSaving || isDeleting}
             >
@@ -249,9 +252,9 @@ export function ResourceSuggestionCard({
               Approve
             </Button>
             <Button
-              size="sm"
+              size="default"
               variant="destructive"
-              className="gap-1"
+              className="gap-2"
               onClick={() => handleStatusChange("rejected")}
               disabled={isStatusUpdating || isSaving || isDeleting}
             >
