@@ -36,6 +36,22 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
+      // Check for rule-based responses first
+      final ruleResponse = _getRuleBasedResponse(userText);
+      if (ruleResponse != null) {
+        print('DEBUG: Using rule-based response');
+        // Add 5 second thinking delay for better UX
+        await Future.delayed(const Duration(seconds: 5));
+        if (mounted) {
+          setState(() {
+            _messages.add(_ChatMessage(ruleResponse, false));
+            _isThinking = false;
+          });
+        }
+        _scrollToBottom();
+        return;
+      }
+
       print('DEBUG: Checking if model is downloaded...');
       bool isDownloaded = await LlmPlatformChannel.isModelDownloaded();
       print('DEBUG: Model downloaded: $isDownloaded');
@@ -69,6 +85,38 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     }
+  }
+
+  String? _getRuleBasedResponse(String userText) {
+    final lowerText = userText.toLowerCase().trim();
+
+    // Greetings
+    if (lowerText.isEmpty) return null;
+    if (lowerText == 'hi' || lowerText == 'hello' || lowerText == 'hey') {
+      return 'Hello! I\'m ResQEdge AI, your emergency response assistant. I can help with disaster management, first aid, evacuation procedures, and emergency protocols. What do you need help with?';
+    }
+
+    // Identity questions
+    if (lowerText.contains('who are you') || lowerText.contains('what are you')) {
+      return 'I\'m ResQEdge AI, an emergency response assistant designed to provide quick guidance during natural disasters, medical emergencies, and crisis situations. I can help with evacuation procedures, first aid, resource management, and emergency protocols.';
+    }
+
+    // Help/capabilities
+    if (lowerText.contains('what can you do') || lowerText.contains('how can you help')) {
+      return 'I can assist with:\n• Disaster evacuation procedures\n• First aid and medical guidance\n• Emergency preparedness\n• Resource allocation\n• Safety protocols\n\nAsk me anything about emergency response and safety!';
+    }
+
+    // Simple yes/no confirmations
+    if (lowerText == 'yes' || lowerText == 'ok' || lowerText == 'thanks' || lowerText == 'thank you') {
+      return 'You\'re welcome! Is there anything else I can help you with?';
+    }
+
+    if (lowerText == 'no' || lowerText == 'nevermind') {
+      return 'Alright! Feel free to ask if you need assistance with emergency procedures or safety guidance.';
+    }
+
+    // Default: use LLM
+    return null;
   }
 
   void _scrollToBottom() {
