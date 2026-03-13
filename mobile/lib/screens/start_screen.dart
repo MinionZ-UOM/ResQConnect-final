@@ -113,7 +113,9 @@ class _StartScreenState extends State<StartScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Your AI-powered assistant for emergency response. Download the offline model to get started.',
+                _modelDownloaded
+                    ? 'Model downloaded! Ready to chat with ResQEdge AI.'
+                    : 'Your AI-powered assistant for emergency response. Download the offline model to get started.',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onBackground.withOpacity(0.7),
                 ),

@@ -48,11 +48,18 @@ class MainActivity : FlutterActivity() {
                             override fun run(partialResult: String?, done: Boolean) {}
                         }
                     )
-                    runBlocking {
-                        val res = responseFuture?.get() ?: ""
-                        result.success(res)
-                        // Reset session after each query for fresh inference
-                        modelInstance?.resetSession()
+                    GlobalScope.launch(Dispatchers.IO) {
+                        try {
+                            val res = responseFuture?.get() ?: ""
+                            withContext(Dispatchers.Main) {
+                                result.success(res)
+                                modelInstance?.resetSession()
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                result.error("INFERENCE_ERROR", e.message, null)
+                            }
+                        }
                     }
                 }
                 "getPublicDownloadsDirectory" -> {

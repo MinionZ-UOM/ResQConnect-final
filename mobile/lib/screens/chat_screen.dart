@@ -41,7 +41,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (ruleResponse != null) {
         print('DEBUG: Using rule-based response');
         // Add 5 second thinking delay for better UX
-        await Future.delayed(const Duration(seconds: 5));
+        await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           setState(() {
             _messages.add(_ChatMessage(ruleResponse, false));
@@ -318,11 +318,11 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               Container(
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary,
+                  color: _isThinking ? theme.colorScheme.onSurface.withOpacity(0.3) : theme.colorScheme.primary,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                  icon: Icon(Icons.arrow_upward_rounded, color: _isThinking ? theme.colorScheme.onSurface.withOpacity(0.5) : Colors.white),
                   onPressed: _isThinking ? null : _sendMessage,
                 ),
               ),

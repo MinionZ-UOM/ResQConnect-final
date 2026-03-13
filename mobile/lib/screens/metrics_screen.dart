@@ -52,6 +52,62 @@ class _MetricsScreenState extends State<MetricsScreen> {
     );
   }
 
+  Future<void> _deleteAllMetrics() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete All Metrics'),
+        content: const Text('Are you sure you want to delete all recorded metrics? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _recorder.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All metrics deleted')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteMetric(MetricEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Metric'),
+        content: const Text('Are you sure you want to delete this metric entry?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _recorder.removeEntry(entry);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Metric deleted')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final entries = _recorder.entries.reversed.toList();
@@ -60,6 +116,11 @@ class _MetricsScreenState extends State<MetricsScreen> {
       appBar: AppBar(
         title: const Text('LLM Metrics'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_outlined),
+            tooltip: 'Delete All Metrics',
+            onPressed: entries.isEmpty ? null : _deleteAllMetrics,
+          ),
           IconButton(
             icon: const Icon(Icons.download_outlined),
             tooltip: 'Export as CSV',
@@ -75,7 +136,10 @@ class _MetricsScreenState extends State<MetricsScreen> {
                   padding: const EdgeInsets.all(16),
                   itemBuilder: (context, index) {
                     final entry = entries[index];
-                    return _MetricTile(entry: entry);
+                    return _MetricTile(
+                      entry: entry,
+                      onDelete: () => _deleteMetric(entry),
+                    );
                   },
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemCount: entries.length,
@@ -85,9 +149,10 @@ class _MetricsScreenState extends State<MetricsScreen> {
 }
 
 class _MetricTile extends StatelessWidget {
-  const _MetricTile({required this.entry});
+  const _MetricTile({required this.entry, required this.onDelete});
 
   final MetricEntry entry;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -110,11 +175,20 @@ class _MetricTile extends StatelessWidget {
                   _formatTimestamp(entry.timestamp),
                   style: theme.textTheme.titleMedium,
                 ),
-                Icon(
-                  entry.success ? Icons.check_circle_outline : Icons.error_outline,
-                  color: entry.success
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.error,
+                Row(
+                  children: [
+                    Icon(
+                      entry.success ? Icons.check_circle_outline : Icons.error_outline,
+                      color: entry.success
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.error,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      onPressed: onDelete,
+                      tooltip: 'Delete this metric',
+                    ),
+                  ],
                 ),
               ],
             ),

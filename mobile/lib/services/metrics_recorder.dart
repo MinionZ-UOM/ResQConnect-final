@@ -194,6 +194,13 @@ class MetricsRecorder extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> removeEntry(MetricEntry entry) async {
+    await ensureInitialized();
+    _entries.remove(entry);
+    await _persist();
+    notifyListeners();
+  }
+
   Future<void> _persist() async {
     final file = _storageFile;
     if (file == null) {
