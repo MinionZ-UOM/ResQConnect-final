@@ -1,8 +1,7 @@
-import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Table as TableIcon } from "lucide-react";
+import { ChevronDown, Warehouse } from "lucide-react";
 
 export function AdminSupplySnapshot({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
     const dummySupplies = [
@@ -20,40 +19,40 @@ export function AdminSupplySnapshot({ isOpen, onOpenChange }: { isOpen: boolean;
         <Collapsible
             open={isOpen}
             onOpenChange={onOpenChange}
-            className="border rounded-xl px-4 py-3 bg-muted/5 shadow-sm"
+            className="border-2 rounded-xl px-5 py-4 bg-muted/5 shadow-sm"
         >
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <TableIcon className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold">Supply Snapshot (Network Sync)</h3>
+                <div className="flex items-center gap-3">
+                    <Warehouse className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-base font-semibold">Supply Snapshot</h3>
                 </div>
                 <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
-                        <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    <Button variant="ghost" size="sm" className="w-9 h-9 p-0">
+                        <ChevronDown className={`h-5 w-5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                     </Button>
                 </CollapsibleTrigger>
             </div>
             <CollapsibleContent className="pt-4 pb-2">
-                <div className="text-sm text-muted-foreground mb-4">
-                    Current Available Resources across regional depots. Data updated chronologically via field reports.
-                </div>
-                <div className="border rounded-md overflow-hidden bg-background">
+                <p className="text-sm text-muted-foreground mb-4">
+                    Current available resources across regional depots.
+                </p>
+                <div className="border rounded-lg overflow-hidden bg-background">
                     <Table>
                         <TableHeader className="bg-muted/50">
                             <TableRow>
-                                <TableHead>Depot / Location</TableHead>
-                                <TableHead>Item</TableHead>
-                                <TableHead className="text-right">Qty Available</TableHead>
-                                <TableHead>Transport Allocation</TableHead>
+                                <TableHead className="text-sm font-semibold py-3">Depot / Location</TableHead>
+                                <TableHead className="text-sm font-semibold py-3">Item</TableHead>
+                                <TableHead className="text-sm font-semibold text-right py-3">Qty Available</TableHead>
+                                <TableHead className="text-sm font-semibold py-3">Transport</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {dummySupplies.map((supply, i) => (
-                                <TableRow key={i}>
-                                    <TableCell className="font-medium">{supply.location}</TableCell>
-                                    <TableCell>{supply.item}</TableCell>
-                                    <TableCell className="text-right font-medium">{supply.qty}</TableCell>
-                                    <TableCell className="text-muted-foreground">{supply.vehicles}</TableCell>
+                                <TableRow key={i} className="hover:bg-muted/20">
+                                    <TableCell className="font-semibold text-sm py-3">{supply.location}</TableCell>
+                                    <TableCell className="text-sm py-3">{supply.item}</TableCell>
+                                    <TableCell className="text-right font-bold text-base py-3">{supply.qty}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground py-3">{supply.vehicles}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>

@@ -179,7 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="min-h-dvh flex flex-col bg-background">
         {/* Top header */}
         <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 h-14 flex items-center gap-3">
+          <div className="mx-auto max-w-[1600px] px-4 sm:px-6 h-14 flex items-center gap-3">
             <Link href="/" className="inline-flex items-center gap-2">
               <Logo className="size-7 text-primary" />
               <span className="text-lg font-semibold">ResQConnect</span>
@@ -202,7 +202,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Page content */}
         <main className="flex-1">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">{children}</div>
+          <div className="mx-auto max-w-[1600px] px-4 sm:px-6 py-6">{children}</div>
         </main>
 
         {/* JOIN Disaster Dialog */}

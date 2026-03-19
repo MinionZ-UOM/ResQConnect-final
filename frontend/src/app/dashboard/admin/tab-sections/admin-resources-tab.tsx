@@ -278,11 +278,11 @@ export default function AdminResourcesTab() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Resource Management</CardTitle>
-          <CardDescription>Loading resource suggestions…</CardDescription>
+          <CardTitle className="text-2xl">Resource Management</CardTitle>
+          <CardDescription className="text-base">Loading resource suggestions…</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="py-8 text-center text-muted-foreground">Fetching resources…</div>
+          <div className="py-12 text-center text-lg text-muted-foreground">Fetching resources…</div>
         </CardContent>
       </Card>
     );
@@ -292,11 +292,11 @@ export default function AdminResourcesTab() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Resource Management</CardTitle>
-          <CardDescription>Unable to load resource suggestions.</CardDescription>
+          <CardTitle className="text-2xl">Resource Management</CardTitle>
+          <CardDescription className="text-base">Unable to load resource suggestions.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="py-8 text-center text-destructive">
+          <div className="py-12 text-center text-lg text-destructive">
             {normalizeApiError(error).message}
           </div>
         </CardContent>
@@ -309,15 +309,15 @@ export default function AdminResourcesTab() {
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1.5">
-            <CardTitle>Resource Management</CardTitle>
-            <CardDescription>Review, update, and approve AI-suggested resources.</CardDescription>
+            <CardTitle className="text-2xl">Resource Management</CardTitle>
+            <CardDescription className="text-base">Review, update, and approve AI-suggested resources.</CardDescription>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-8">
         {/* KPI Strip & Distribution Planning Toolbar */}
-        <div className="flex flex-col xl:flex-row gap-4">
+        <div className="flex flex-col gap-4">
           <AdminKpiStrip kpis={kpis} />
           <AdminDistributionToolbar isAutoPlan={isAutoPlan} onAutoPlanToggle={handleAutoPlanToggle} />
         </div>
@@ -325,12 +325,12 @@ export default function AdminResourcesTab() {
         <Card className="border">
           <CardHeader className="py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FilterIcon className="h-4 w-4" />
-                <CardTitle className="text-lg font-semibold">Filters</CardTitle>
+              <div className="flex items-center gap-3">
+                <FilterIcon className="h-5 w-5" />
+                <CardTitle className="text-xl font-semibold">Filters</CardTitle>
               </div>
-              <Button variant="outline" size="sm" onClick={resetFilters} className="gap-2" aria-label="Reset filters">
-                <RotateCcw className="h-4 w-6" /> Reset
+              <Button variant="outline" size="default" onClick={resetFilters} className="gap-2" aria-label="Reset filters">
+                <RotateCcw className="h-4 w-4" /> Reset
               </Button>
             </div>
           </CardHeader>
@@ -450,7 +450,7 @@ export default function AdminResourcesTab() {
         })}
 
         {groupedResources.size === 0 && (
-          <div className="col-span-full text-center py-10 text-muted-foreground">
+          <div className="col-span-full text-center py-14 text-lg text-muted-foreground">
             No resources match your filters.
           </div>
         )}
