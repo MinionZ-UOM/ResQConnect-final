@@ -162,6 +162,12 @@ OpenAI_API_KEY=your_openai_api_key
 LANGFUSE_SECRET_KEY=your_langfuse_secret
 LANGFUSE_PUBLIC_KEY=your_langfuse_public
 LANGFUSE_HOST=https://cloud.langfuse.com
+REDIS_HOST=
+REDIS_PORT=
+REDIS_USERNAME=
+REDIS_PASSWORD=
+CELERY_BROKER_URL=
+TAVILY_API_KEY=
 ```
 
 ### Frontend (`frontend/.env.local`)
