@@ -2,6 +2,7 @@ import os
 import sys
 from celery import Celery, shared_task
 from redis import ConnectionPool, Redis
+from dotenv import load_dotenv
 
 from app.crud.workflow_output import upsert as store_workflow_output
 from app.utils.logger import get_logger
@@ -9,25 +10,42 @@ from app.utils.workflow_output_parser import build_workflow_output_payload
 logger = get_logger(__name__)
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+load_dotenv()
 
 
-REDIS_HOST     = "redis-19345.crce185.ap-seast-1-1.ec2.redns.redis-cloud.com"
-REDIS_PORT     = 19345
-REDIS_USERNAME = "default"
-REDIS_PASSWORD = "owrn65FkWFF2euEV47NCPr4ZdmhqYf1V"
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
 
-_pool = ConnectionPool(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    password=REDIS_PASSWORD,
-    max_connections=5,         
-)
+if CELERY_BROKER_URL:
+    _pool = ConnectionPool.from_url(CELERY_BROKER_URL, max_connections=5)
+    broker_url = CELERY_BROKER_URL
+else:
+    missing_vars = [name for name, value in {
+        "REDIS_HOST": REDIS_HOST,
+        "REDIS_PASSWORD": REDIS_PASSWORD,
+    }.items() if not value]
+    if missing_vars:
+        raise EnvironmentError(
+            "Missing required environment variable(s) for Celery/Redis: "
+            + ", ".join(missing_vars)
+        )
+
+    _pool = ConnectionPool(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        password=REDIS_PASSWORD,
+        max_connections=5,
+    )
+    broker_url = f"redis://{REDIS_USERNAME}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}"
+
 shared_redis = Redis(connection_pool=_pool)
 
 celery_app = Celery(
     'backend',
-    broker=f'redis://default:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}',
-    backend=None,              
+    broker=broker_url,
+    backend=None,
 )
 
 celery_app.conf.update(

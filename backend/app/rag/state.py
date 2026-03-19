@@ -21,7 +21,7 @@ class State(TypedDict):
 # llm = ChatGroq(
 #     model="llama-3.3-70b-versatile",
 #     temperature=0,
-#     groq_api_key="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"
+#     groq_api_key=os.getenv("GROQ_API_KEY")
 # )
 
 Provider = "OPEN_AI"

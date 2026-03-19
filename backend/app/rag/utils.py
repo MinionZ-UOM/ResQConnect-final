@@ -52,7 +52,7 @@ def create_search_tool(api_key: str | None = None):
     Create a TavilySearch tool with a dynamically provided API key.
     Falls back to environment variable if not explicitly passed.
     """
-    key = api_key or os.getenv("TAVILY_API_KEY", "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")
+    key = api_key or os.getenv("TAVILY_API_KEY")
     if not key:
         raise ValueError("Tavily API key must be provided either directly or via environment variable.")
     return TavilySearch(tavily_api_key=key)
