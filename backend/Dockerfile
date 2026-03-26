@@ -34,8 +34,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN groupadd --system app \
+    && useradd --system --gid app --uid 10001 --home /nonexistent --shell /usr/sbin/nologin app
+
 COPY --from=builder /opt/venv /opt/venv
-COPY . .
+COPY --chown=app:app app ./app
+COPY --chown=app:app api_docs.yaml ./api_docs.yaml
+
+USER app
 
 EXPOSE 8000
 

@@ -2,16 +2,14 @@ version: "3.9"
 
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: resqconnect-backend:local
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .deploy.env}
+    pull_policy: always
     container_name: resq_api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
-      - ./.env
+      - ./.env.production
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/firebase_cred.json
     volumes:
@@ -19,16 +17,24 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5).read()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: resqconnect-backend:local
-    container_name: resq_celery_worker
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .deploy.env}
+    pull_policy: always
+    container_name: resq_worker
     command: celery -A app.celery_config.celery_app worker --loglevel=info --concurrency=2
     env_file:
-      - ./.env
+      - ./.env.production
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/firebase_cred.json
     volumes:
@@ -36,15 +42,17 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   redis:
     image: redis:7-alpine
     container_name: resq_redis
     command: sh -c 'redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"'
     env_file:
-      - ./.env
-    ports:
-      - "127.0.0.1:6379:6379"
+      - ./.env.production
     volumes:
       - redis_data:/data
     restart: unless-stopped

@@ -13,3 +13,8 @@ env/
 .gitignore
 .idea/
 .vscode/
+app/secrets/
+tests/
+docs/
+.github/
+*.md

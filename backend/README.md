@@ -126,3 +126,13 @@ celery -A app.celery_config.celery_app worker --loglevel=info --pool=solo
 ```
 
 ---
+
+## Automated AWS Deployment (ECR + GitHub Actions)
+
+- Production compose file: `backend/docker-compose.prod.yml`
+- CI/CD workflow: `.github/workflows/backend-deploy.yml`
+- Deployment scripts: `backend/deploy/`
+
+Setup guide:
+
+- `backend/deploy/CI_CD_SETUP.md`
