@@ -17,6 +17,7 @@ REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
+REDIS_USERNAME = os.getenv("REDIS_USERNAME", "default")
 
 if CELERY_BROKER_URL:
     _pool = ConnectionPool.from_url(CELERY_BROKER_URL, max_connections=5)
