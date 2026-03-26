@@ -1,67 +1,23 @@
-version: "3.9"
-
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: 461906806158.dkr.ecr.ap-southeast-1.amazonaws.com/minionz/resqconnect-backend:latest
-    container_name: resq_api
+    build: .
+    image: ${APP_IMAGE:-resqconnect-backend}:${APP_TAG:-latest}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     env_file:
-      - ./.env
+      - .env
     environment:
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/firebase_cred.json
+      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/firebase_cred.json
     volumes:
       - ./app/secrets/firebase_cred.json:/app/secrets/firebase_cred.json:ro
-    restart: unless-stopped
 
   worker:
-    image: 461906806158.dkr.ecr.ap-southeast-1.amazonaws.com/minionz/resqconnect-backend:latest
-    container_name: resq_celery_worker
+    image: ${APP_IMAGE:-resqconnect-backend}:${APP_TAG:-latest}
     command: celery -A app.celery_config.celery_app worker --loglevel=info --pool=solo
     env_file:
-      - ./.env
+      - .env
     environment:
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/firebase_cred.json
+      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/firebase_cred.json
     volumes:
       - ./app/secrets/firebase_cred.json:/app/secrets/firebase_cred.json:ro
-    depends_on:
-      - api
-    restart: unless-stopped
-
-  # mcp_db:
-  #   image: 461906806158.dkr.ecr.ap-southeast-1.amazonaws.com/minionz/resqconnect-backend:latest
-  #   container_name: resq_mcp_db
-  #   working_dir: /app/app/chatbot/mcp_servers/db
-  #   command: python server.py
-  #   ports:
-  #     - "4201:4201"
-  #   env_file:
-  #     - ./.env
-  #   environment:
-  #     - GOOGLE_APPLICATION_CREDENTIALS_MCP=/app/app/chatbot/mcp_servers/db/secrets/firebase_cred.json
-  #   volumes:
-  #     - ./app/chatbot:/app/app/chatbot
-  #     - ./app/chatbot/mcp_servers/db/secrets/firebase_cred.json:/app/app/chatbot/mcp_servers/db/secrets/firebase_cred.json:ro
-  #   restart: unless-stopped
-
-  # mcp_rag:
-  #   image: 461906806158.dkr.ecr.ap-southeast-1.amazonaws.com/minionz/resqconnect-backend:latest
-  #   container_name: resq_mcp_rag
-  #   working_dir: /app/app/chatbot/mcp_servers/rag
-  #   command: python server.py
-  #   ports:
-  #     - "4202:4202"
-  #   env_file:
-  #     - ./.env
-  #   volumes:
-  #     - ./app/chatbot:/app/app/chatbot
-  #   restart: unless-stopped
-
-networks:
-  default:
-    name: resq_network
-    driver: bridge
