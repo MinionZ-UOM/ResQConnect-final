@@ -2,10 +2,20 @@ from openai import OpenAI
 from .config import CONFIG
 import json
 
+
+def _resolve_openai_api_key() -> str:
+    api_key = (CONFIG.openai_api_key or "").strip()
+    if not api_key:
+        raise EnvironmentError(
+            "OPENAI_API_KEY environment variable is required for agent_v2 workflow."
+        )
+    return api_key
+
+
 class LLMClient:
     def __init__(self, model_name=None):
         self.model_name = model_name or CONFIG.models.text_model
-        self.client = OpenAI(api_key=CONFIG.openai_api_key)
+        self.client = OpenAI(api_key=_resolve_openai_api_key())
 
     def structured_json(self, prompt: str):
         resp = self.client.chat.completions.create(
@@ -22,7 +32,7 @@ class LLMClient:
 class VLMClient:
     def __init__(self, model_name=None):
         self.model_name = model_name or CONFIG.models.vision_model
-        self.client = OpenAI(api_key=CONFIG.openai_api_key)
+        self.client = OpenAI(api_key=_resolve_openai_api_key())
 
     def caption_image(self, prompt: str, image_url=None, image_b64=None) -> str:
         """
