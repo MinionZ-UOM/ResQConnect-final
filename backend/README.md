@@ -25,7 +25,7 @@ GOOGLE_APPLICATION_CREDENTIALS=app/secrets/firebase_cred.json
 # GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/firebase_cred.json
 
 # LLM provider key used by current flow
-GROQ_API_KEY=your_groq_api_key
+OPENAI_API_KEY=your_openai_api_key
 
 # Celery broker (recommended single source of truth)
 # Manual + local Redis container:
@@ -48,7 +48,7 @@ TAVILY_API_KEY=
 
 # Alternative model providers
 GEMINI_API_KEY=
-OPENAI_API_KEY=
+GROQ_API_KEY=
 
 # Agent/chatbot tuning
 OPENAI_TEXT_MODEL=gpt-4o-mini
