@@ -82,3 +82,12 @@ def list_by_disaster(disaster_id: str) -> List[Request]:
         .stream()
     )
     return [_snap_to_model(s) for s in qs]
+
+
+def delete(req_id: str) -> bool:
+    doc = _ref(req_id)
+    snap = doc.get()
+    if not snap.exists:
+        return False
+    doc.delete()
+    return True

@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -25,7 +25,7 @@ import type { TaskPriority, TaskStatus } from "@/lib/types";
 import type { Request } from "@/lib/types/request";
 import { normalizeApiError } from "@/lib/normalize-api-error";
 import { mapPriorityToTaskPriority } from "@/lib/utils/taskSuggestionMapping";
-import { getMyRequests, MY_REQUESTS_QUERY_KEY } from "@/services/requestService";
+import { deleteRequest, getMyRequests, MY_REQUESTS_QUERY_KEY } from "@/services/requestService";
 import RequestCard, { type TrackableRequest } from "../components/request-card";
 
 const STATUS_MAP: Record<string, TaskStatus> = {
@@ -71,6 +71,7 @@ const mapRequestToTrackableRequest = (request: Request): TrackableRequest => {
 };
 
 export default function TrackRequestTab() {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
 
@@ -85,6 +86,13 @@ export default function TrackRequestTab() {
   } = useQuery({
     queryKey: MY_REQUESTS_QUERY_KEY,
     queryFn: getMyRequests,
+  });
+
+  const deleteRequestMutation = useMutation({
+    mutationFn: (requestId: string) => deleteRequest(requestId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: MY_REQUESTS_QUERY_KEY });
+    },
   });
 
   const rows = useMemo(() => requests.map(mapRequestToTrackableRequest), [requests]);
@@ -111,6 +119,13 @@ export default function TrackRequestTab() {
       return matchesQuery && matchesPriority && matchesStatus;
     });
   }, [rows, deferredQuery, priorityFilter, statusFilter]);
+
+  const handleDeleteRequest = async (requestId: string) => {
+    const confirmed = window.confirm("Delete this request? This action cannot be undone.");
+    if (!confirmed) return;
+
+    await deleteRequestMutation.mutateAsync(requestId);
+  };
 
   return (
     <Card>
@@ -236,7 +251,12 @@ export default function TrackRequestTab() {
           ) : (
             <>
               {filtered.map((r) => (
-                <RequestCard key={r.id} request={r} />
+                <RequestCard
+                  key={r.id}
+                  request={r}
+                  onDelete={handleDeleteRequest}
+                  isDeleting={deleteRequestMutation.isPending && deleteRequestMutation.variables === r.id}
+                />
               ))}
               {filtered.length === 0 && (
                 <div className="col-span-full text-center py-10 text-muted-foreground">

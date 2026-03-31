@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/ui/badges";
 import { cn } from "@/lib/utils";
 import type { TaskPriority, TaskStatus } from "@/lib/types";
-import { MapPin, ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp, TriangleAlert, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { mockDisasters } from "@/lib/mock-data";
 
 export type TrackableRequest = {
@@ -26,9 +27,11 @@ export type TrackableRequest = {
 
 type Props = {
   request: TrackableRequest;
+  onDelete?: (requestId: string) => Promise<void> | void;
+  isDeleting?: boolean;
 };
 
-export default function RequestCard({ request }: Props) {
+export default function RequestCard({ request, onDelete, isDeleting = false }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
   const descRef = useRef<HTMLParagraphElement | null>(null);
@@ -88,14 +91,14 @@ export default function RequestCard({ request }: Props) {
           <span className="truncate max-w-[18rem]">{locationText}</span>
         </Badge>
 
-        <Badge
+        {/* <Badge
           variant="outline"
           className="h-7 rounded-full border-slate-400/40 bg-slate-400/10 text-slate-700 inline-flex items-center gap-1 px-2.5"
           title={disasterName}
         >
           <TriangleAlert className="h-3.5 w-3.5 opacity-70" />
           <span className="truncate max-w-[14rem]">{disasterName}</span>
-        </Badge>
+        </Badge> */}
 
         <PriorityBadge value={request.priority} />
       </div>
@@ -145,6 +148,21 @@ export default function RequestCard({ request }: Props) {
       <div className="pt-2 border-t flex flex-wrap items-center gap-1.5 sm:gap-2">
         <span className="text-xs sm:text-sm font-medium text-slate-600">Current Status:</span>
         <StatusBadge value={request.status} />
+        {onDelete && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto gap-1 text-destructive border-destructive/40 hover:bg-destructive/5"
+            onClick={() => {
+              void onDelete(request.id);
+            }}
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4" />
+            {isDeleting ? "Deleting..." : "Delete"}
+          </Button>
+        )}
       </div>
     </div>
   );

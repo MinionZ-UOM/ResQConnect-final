@@ -112,6 +112,28 @@ def read_request(
     return req
 
 
+@router.delete(
+    "/{req_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[require_perms("request:read_own")],
+)
+def delete_request(
+    req_id: str,
+    current: User = Depends(get_current_user),
+):
+    req = crud.get(req_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+
+    if req.created_by != current.uid:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not authorised")
+
+    if not crud.delete(req_id):
+        raise HTTPException(404, "Request not found")
+
+    return None
+
+
 # - status patch -
 @router.patch(
     "/{req_id}/status",
