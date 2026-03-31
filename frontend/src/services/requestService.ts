@@ -7,6 +7,8 @@ import type {
 } from '@/lib/types/request';
 import { mapRequest } from '@/lib/utils/mapRequest';
 
+export const MY_REQUESTS_QUERY_KEY = ['my-requests'] as const;
+
 export const createRequest = async (payload: RequestCreatePayload): Promise<Request> => {
   const response = await apiPost<RequestApiResponse>('/requests', payload);
   return mapRequest(response);

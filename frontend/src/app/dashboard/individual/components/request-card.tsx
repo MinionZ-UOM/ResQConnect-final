@@ -3,13 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PriorityBadge, StatusBadge } from "@/components/ui/badges";
 import { cn } from "@/lib/utils";
-import type { HelpRequest } from "@/lib/types";
+import type { TaskPriority, TaskStatus } from "@/lib/types";
 import { MapPin, ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { mockDisasters } from "@/lib/mock-data";
 
+export type TrackableRequest = {
+  id: string;
+  title: string;
+  disasterId?: string;
+  description?: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  location?: {
+    lat?: number;
+    lng?: number;
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+  };
+};
+
 type Props = {
-  request: HelpRequest;
+  request: TrackableRequest;
 };
 
 export default function RequestCard({ request }: Props) {
@@ -17,7 +33,6 @@ export default function RequestCard({ request }: Props) {
   const [canExpand, setCanExpand] = useState(false);
   const descRef = useRef<HTMLParagraphElement | null>(null);
 
-  // Detect overflow for description
   useEffect(() => {
     const el = descRef.current;
     if (!el) return;
@@ -42,32 +57,27 @@ export default function RequestCard({ request }: Props) {
     };
   }, [expanded, request.description]);
 
+  const lat = request.location?.lat ?? request.location?.latitude;
+  const lng = request.location?.lng ?? request.location?.longitude;
   const locationText =
-    request?.location?.address ||
-    (request?.location
-      ? `(${request.location.latitude.toFixed(4)}, ${request.location.longitude.toFixed(4)})`
-      : "—");
+    request.location?.address ||
+    (lat != null && lng != null ? `(${lat.toFixed(4)}, ${lng.toFixed(4)})` : "-");
 
-  // get disaster name from mockDisasters
   const disasterName = useMemo(() => {
     const found = mockDisasters.find((d) => d.id === request.disasterId);
-    return found ? found.name : request.disasterId;
+    return found ? found.name : (request.disasterId ?? "-");
   }, [request.disasterId]);
 
   return (
     <div
       role="group"
       className={cn(
-        "rounded-xl border bg-slate-50 p-4 sm:p-5 space-y-3 sm:space-y-4", // 🔹 responsive padding
+        "rounded-xl border bg-slate-50 p-4 sm:p-5 space-y-3 sm:space-y-4",
         "focus-within:ring-2 focus-within:ring-ring"
       )}
     >
-      {/* Title */}
-      <h3 className="text-base sm:text-lg font-semibold text-slate-800">
-        {request.title}
-      </h3>
+      <h3 className="text-base sm:text-lg font-semibold text-slate-800">{request.title}</h3>
 
-      {/* Meta chips: location, disaster, priority */}
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <Badge
           variant="outline"
@@ -90,7 +100,6 @@ export default function RequestCard({ request }: Props) {
         <PriorityBadge value={request.priority} />
       </div>
 
-      {/* Description */}
       {request.description && (
         <div>
           <p
@@ -133,11 +142,8 @@ export default function RequestCard({ request }: Props) {
         </div>
       )}
 
-      {/* Status */}
       <div className="pt-2 border-t flex flex-wrap items-center gap-1.5 sm:gap-2">
-        <span className="text-xs sm:text-sm font-medium text-slate-600">
-          Current Status:
-        </span>
+        <span className="text-xs sm:text-sm font-medium text-slate-600">Current Status:</span>
         <StatusBadge value={request.status} />
       </div>
     </div>

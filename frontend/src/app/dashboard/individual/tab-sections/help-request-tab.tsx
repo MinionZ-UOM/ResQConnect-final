@@ -1,13 +1,23 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import HelpRequestForm from "../components/help-request-form";
 import type { RequestCreatePayload } from "@/lib/types/request";
-import { createRequest } from "@/services/requestService";
+import { createRequest, MY_REQUESTS_QUERY_KEY } from "@/services/requestService";
 
 export default function HelpRequestTab() {
+  const queryClient = useQueryClient();
+
+  const createRequestMutation = useMutation({
+    mutationFn: (payload: RequestCreatePayload) => createRequest(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: MY_REQUESTS_QUERY_KEY });
+    },
+  });
+
   const handleSubmit = async (payload: RequestCreatePayload) => {
-    await createRequest(payload);
+    await createRequestMutation.mutateAsync(payload);
   };
 
   return (

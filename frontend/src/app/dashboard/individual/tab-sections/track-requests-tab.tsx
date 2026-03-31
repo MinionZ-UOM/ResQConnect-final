@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useDeferredValue } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -20,37 +21,73 @@ import {
 } from "@/components/ui/select";
 import { Filter as FilterIcon, RotateCcw, X, Search } from "lucide-react";
 
-import RequestCard from "../components/request-card";
-import type { HelpRequest, TaskPriority, TaskStatus } from "@/lib/types";
-import { getMockHelpRequests } from "@/lib/mock-data";
+import type { TaskPriority, TaskStatus } from "@/lib/types";
+import type { Request } from "@/lib/types/request";
+import { normalizeApiError } from "@/lib/normalize-api-error";
+import { mapPriorityToTaskPriority } from "@/lib/utils/taskSuggestionMapping";
+import { getMyRequests, MY_REQUESTS_QUERY_KEY } from "@/services/requestService";
+import RequestCard, { type TrackableRequest } from "../components/request-card";
 
-type Props = {
-  requests?: HelpRequest[];
-  onStatusChange?: (
-    requestId: string,
-    newStatus: TaskStatus
-  ) => Promise<void> | void;
+const STATUS_MAP: Record<string, TaskStatus> = {
+  pending: "Pending",
+  approved: "Approved",
+  assigned: "Assigned",
+  "in progress": "In Progress",
+  in_progress: "In Progress",
+  inprogress: "In Progress",
+  completed: "Completed",
+  rejected: "Rejected",
 };
 
-export default function TrackRequestTab({
-  requests,
-  onStatusChange,
-}: Props) {
+const normalizeRequestStatus = (status?: string): TaskStatus => {
+  if (!status) return "Pending";
+
+  const lower = status.trim().toLowerCase();
+  const spaced = lower.replace(/[-_]+/g, " ");
+
+  return STATUS_MAP[lower] ?? STATUS_MAP[spaced] ?? "Pending";
+};
+
+const mapRequestToTrackableRequest = (request: Request): TrackableRequest => {
+  const autoExtractPriority = request.autoExtract?.["priority"];
+  const prioritySource =
+    typeof autoExtractPriority === "string" && autoExtractPriority.trim().length
+      ? autoExtractPriority
+      : request.typeOfNeed;
+
+  const lat = request.location?.lat ?? undefined;
+  const lng = request.location?.lng ?? undefined;
+  const address = request.location?.address ?? undefined;
+
+  return {
+    id: request.id,
+    title: request.title,
+    disasterId: request.disasterId,
+    description: request.description,
+    priority: mapPriorityToTaskPriority(prioritySource || "medium"),
+    status: normalizeRequestStatus(request.status),
+    location: lat == null && lng == null && !address ? undefined : { lat, lng, address },
+  };
+};
+
+export default function TrackRequestTab() {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
 
-  const [priorityFilter, setPriorityFilter] = useState<
-    "All" | TaskPriority
-  >("All");
-  const [statusFilter, setStatusFilter] = useState<
-    "All" | TaskStatus
-  >("All");
+  const [priorityFilter, setPriorityFilter] = useState<"All" | TaskPriority>("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | TaskStatus>("All");
 
-  const [rows, setRows] = useState<HelpRequest[]>([]);
+  const {
+    data: requests = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: MY_REQUESTS_QUERY_KEY,
+    queryFn: getMyRequests,
+  });
 
-  useEffect(() => {
-    setRows(requests ?? getMockHelpRequests());
-  }, [requests]);
+  const rows = useMemo(() => requests.map(mapRequestToTrackableRequest), [requests]);
 
   const resetFilters = () => {
     setQuery("");
@@ -60,35 +97,20 @@ export default function TrackRequestTab({
 
   const filtered = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase();
+
     return rows.filter((r) => {
       const matchesQuery =
         !q ||
         r.title.toLowerCase().includes(q) ||
-        r.description.toLowerCase().includes(q) ||
+        (r.description ?? "").toLowerCase().includes(q) ||
         (r.location?.address ?? "").toLowerCase().includes(q);
 
-      const matchesPriority =
-        priorityFilter === "All" || r.priority === priorityFilter;
-      const matchesStatus =
-        statusFilter === "All" || r.status === statusFilter;
+      const matchesPriority = priorityFilter === "All" || r.priority === priorityFilter;
+      const matchesStatus = statusFilter === "All" || r.status === statusFilter;
 
       return matchesQuery && matchesPriority && matchesStatus;
     });
   }, [rows, deferredQuery, priorityFilter, statusFilter]);
-
-  async function updateStatus(requestId: string, newStatus: TaskStatus) {
-    const prev = rows;
-    setRows((cur) =>
-      cur.map((r) =>
-        r.id === requestId ? { ...r, status: newStatus } : r
-      )
-    );
-    try {
-      await onStatusChange?.(requestId, newStatus);
-    } catch {
-      setRows(prev); 
-    }
-  }
 
   return (
     <Card>
@@ -97,22 +119,35 @@ export default function TrackRequestTab({
           <div className="space-y-1.5">
             <CardTitle>Track Requests</CardTitle>
             <CardDescription>
-              Search, filter, and monitor the status of all help requests.
+              Search, filter, and monitor the status of your help requests.
             </CardDescription>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-8">
-        {/* Filters */}
+        {error && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+            <p>{normalizeApiError(error).message}</p>
+            <Button
+              className="mt-3"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void refetch();
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
         <Card className="border">
           <CardHeader className="py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FilterIcon className="h-4 w-4" />
-                <CardTitle className="text-lg font-semibold">
-                  Filters
-                </CardTitle>
+                <CardTitle className="text-lg font-semibold">Filters</CardTitle>
               </div>
               <Button
                 variant="outline"
@@ -128,19 +163,15 @@ export default function TrackRequestTab({
 
           <CardContent className="pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Search */}
               <div className="space-y-2">
-                <Label
-                  className="text-lg font-semibold"
-                  htmlFor="request-search"
-                >
+                <Label className="text-lg font-semibold" htmlFor="request-search">
                   Search
                 </Label>
                 <div className="relative bg-background">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="request-search"
-                    placeholder="Search by title or location…"
+                    placeholder="Search by title or location..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     className="pr-9 pl-9 h-12"
@@ -161,15 +192,9 @@ export default function TrackRequestTab({
                 </div>
               </div>
 
-              {/* Priority */}
               <div className="space-y-2">
                 <Label className="text-lg font-semibold">Priority</Label>
-                <Select
-                  value={priorityFilter}
-                  onValueChange={(v) =>
-                    setPriorityFilter(v as any)
-                  }
-                >
+                <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as "All" | TaskPriority)}>
                   <SelectTrigger className="h-12">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
@@ -182,15 +207,9 @@ export default function TrackRequestTab({
                 </Select>
               </div>
 
-              {/* Status */}
               <div className="space-y-2">
                 <Label className="text-lg font-semibold">Status</Label>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(v) =>
-                    setStatusFilter(v as any)
-                  }
-                >
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as "All" | TaskStatus)}>
                   <SelectTrigger className="h-12">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
@@ -209,18 +228,22 @@ export default function TrackRequestTab({
           </CardContent>
         </Card>
 
-        {/* Request cards */}
         <div className="grid gap-4 grid-cols-1">
-          {filtered.map((r) => (
-            <RequestCard
-              key={r.id}
-              request={r}
-            />
-          ))}
-          {filtered.length === 0 && (
+          {isLoading ? (
             <div className="col-span-full text-center py-10 text-muted-foreground">
-              No requests match your filters.
+              Loading your requests...
             </div>
+          ) : (
+            <>
+              {filtered.map((r) => (
+                <RequestCard key={r.id} request={r} />
+              ))}
+              {filtered.length === 0 && (
+                <div className="col-span-full text-center py-10 text-muted-foreground">
+                  No requests match your filters.
+                </div>
+              )}
+            </>
           )}
         </div>
       </CardContent>
