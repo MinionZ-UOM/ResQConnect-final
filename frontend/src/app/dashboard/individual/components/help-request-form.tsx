@@ -562,7 +562,7 @@ export default function HelpRequestForm({ onSubmit }: Props) {
             <p className="text-sm text-destructive">{transcriptionError}</p>
           )}
 
-          <p className="text-sm text-slate-700 mt-1">Max 25MB â€¢ Recorded as WebM (browser-native)</p>
+          <p className="text-sm text-slate-700 mt-1">Max 25MB Recorded as WebM (browser-native)</p>
         </div>
       </CardContent>
 
