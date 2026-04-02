@@ -497,7 +497,7 @@ export default function HelpRequestForm({ onSubmit }: Props) {
           />
           {errors.photos && <p className="text-destructive text-sm">{errors.photos.message as string}</p>}
           <p className="text-sm xs:text-base text-slate-700">
-            Up to 8 photos â€¢ JPG/PNG/WebP/HEIC â€¢ â‰¤ {MAX_IMAGE_MB}MB each
+            Up to 8 photos JPG/PNG/WebP/HEIC {MAX_IMAGE_MB}MB each
           </p>
         </div>
 
