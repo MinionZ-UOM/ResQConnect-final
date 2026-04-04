@@ -29,6 +29,8 @@ class InferenceModel private constructor(context: Context) {
     private val TAG = InferenceModel::class.qualifiedName
     private val conversationTurns = mutableListOf<ConversationTurn>()
     private val maxHistoryTurns = 20
+    @Volatile
+    private var sessionRefreshRequired = false
 
     init {
         if (!modelExists(context)) throw IllegalArgumentException("Model not found at path: ${Model.QWEN2_0_5B_INSTRUCT.path}")
@@ -65,20 +67,54 @@ class InferenceModel private constructor(context: Context) {
     }
 
     @Synchronized
-    private fun addTurn(role: String, content: String) {
+    private fun addTurn(role: String, content: String): Boolean {
         val normalized = content.trim()
-        if (normalized.isEmpty()) return
+        if (normalized.isEmpty()) return false
         conversationTurns.add(ConversationTurn(role = role, content = normalized))
         // Bound in-memory conversation state to protect app-side prompt management.
+        var trimmed = false
         if (conversationTurns.size > maxHistoryTurns) {
             val toDrop = conversationTurns.size - maxHistoryTurns
             repeat(toDrop) { conversationTurns.removeAt(0) }
+            trimmed = true
+            sessionRefreshRequired = true
+        }
+        return trimmed
+    }
+
+    private fun formatTurnForReplay(turn: ConversationTurn): String {
+        return when (turn.role) {
+            "assistant" -> "Assistant: ${turn.content}"
+            "system" -> "System: ${turn.content}"
+            else -> "User: ${turn.content}"
         }
     }
 
+    @Synchronized
+    private fun resetSessionInternal(rehydrateFromHistory: Boolean) {
+        try {
+            llmInferenceSession.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error closing session: ${e.message}")
+        }
+        createSession()
+        if (rehydrateFromHistory) {
+            conversationTurns.forEach { turn ->
+                llmInferenceSession.addQueryChunk(formatTurnForReplay(turn))
+            }
+        }
+        sessionRefreshRequired = false
+    }
+
     fun generateResponseAsync(prompt: String, progressListener: ProgressListener<String>): ListenableFuture<String> {
-        addTurn("user", prompt)
-        llmInferenceSession.addQueryChunk(prompt)
+        val wasTrimmed = addTurn("user", prompt)
+        val needsRefreshNow = sessionRefreshRequired || wasTrimmed
+        if (needsRefreshNow) {
+            // Refresh only when context budget maintenance requires it, then replay retained history.
+            resetSessionInternal(rehydrateFromHistory = true)
+        } else {
+            llmInferenceSession.addQueryChunk(prompt)
+        }
         val responseFuture = llmInferenceSession.generateResponseAsync(progressListener)
         val wrappedFuture = SettableFuture.create<String>()
 
@@ -102,13 +138,8 @@ class InferenceModel private constructor(context: Context) {
     }
 
     fun resetSession() {
-        try {
-            llmInferenceSession.close()
-        } catch (e: Exception) {
-            Log.w(TAG, "Error closing session: ${e.message}")
-        }
-        createSession()
-        Log.d(TAG, "Session reset successfully")
+        resetSessionInternal(rehydrateFromHistory = true)
+        Log.d(TAG, "Session reset successfully with conversation rehydration")
     }
 
     fun closeModel() {
