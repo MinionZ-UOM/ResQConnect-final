@@ -175,7 +175,11 @@ class MetricsRecorder extends ChangeNotifier {
     if (exportedFile == null) {
       Directory? directory;
       if (!kIsWeb) {
-        directory = await getDownloadsDirectory();
+        try {
+          directory = await getDownloadsDirectory();
+        } catch (_) {
+          directory = null;
+        }
       }
 
       directory ??= await getApplicationDocumentsDirectory();

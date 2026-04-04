@@ -15,6 +15,7 @@ void main() {
       ),
     );
 
+    await tester.ensureVisible(find.text('Help Request'));
     await tester.tap(find.text('Help Request'));
     await tester.pumpAndSettle();
 
@@ -33,6 +34,7 @@ void main() {
       ),
     );
 
+    await tester.ensureVisible(find.text('ResQBot'));
     await tester.tap(find.text('ResQBot'));
     await tester.pumpAndSettle();
 

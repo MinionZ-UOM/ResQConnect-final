@@ -21,8 +21,8 @@ void main() {
     });
   });
 
-  tearDown(() async {
-    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(llmChannel, null);
   });
 

@@ -34,7 +34,7 @@ void main() {
   });
 
   tearDownAll(() async {
-    await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProviderChannel, null);
     if (await tempDir.exists()) {
       await tempDir.delete(recursive: true);
