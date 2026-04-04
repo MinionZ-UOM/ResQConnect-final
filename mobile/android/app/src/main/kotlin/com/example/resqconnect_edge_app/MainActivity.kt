@@ -22,6 +22,7 @@ class MainActivity : FlutterActivity() {
     private val modelReady = AtomicBoolean(false)
     private val warmupInFlight = AtomicBoolean(false)
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val enableStartupPrewarm = false
 
     private lateinit var mainChannel: MethodChannel
 
@@ -118,7 +119,7 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        if (InferenceModel.modelExists(this)) {
+        if (enableStartupPrewarm && InferenceModel.modelExists(this)) {
             prewarmModelAsync()
         }
     }
@@ -172,7 +173,9 @@ class MainActivity : FlutterActivity() {
             InferenceModel.resetInstance(this)
             modelInstance = null
             modelReady.set(false)
-            prewarmModelAsync()
+            if (enableStartupPrewarm) {
+                prewarmModelAsync()
+            }
             true
         } catch (e: Exception) {
             e.printStackTrace()

@@ -122,18 +122,13 @@ class InferenceModel private constructor(context: Context) {
     private fun resolvePreferredBackend(context: Context): LlmInference.Backend {
         val prefs = appContext.getSharedPreferences("llm_prefs", Context.MODE_PRIVATE)
         val savedBackend = backendFromName(prefs.getString("inference_backend", null))
-        if (savedBackend != null && canCreateEngineWithBackend(context, savedBackend)) {
-            return savedBackend
-        }
 
-        val preferredOrder = listOf("GPU", "NNAPI", "NPU", "CPU")
-        for (backendName in preferredOrder) {
-            val backend = backendFromName(backendName) ?: continue
-            if (canCreateEngineWithBackend(context, backend)) {
-                return backend
-            }
+        // Safety-first: avoid probing arbitrary accelerated backends on startup.
+        // Some devices can abort natively instead of throwing recoverable exceptions.
+        return when {
+            savedBackend == LlmInference.Backend.CPU -> LlmInference.Backend.CPU
+            else -> LlmInference.Backend.CPU
         }
-        return LlmInference.Backend.CPU
     }
 
     @Synchronized
