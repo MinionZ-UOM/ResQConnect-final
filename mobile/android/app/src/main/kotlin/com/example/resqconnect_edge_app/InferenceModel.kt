@@ -12,7 +12,7 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession.LlmInferenceSessionOptions
 import com.google.mediapipe.tasks.genai.llminference.ProgressListener
 
-var MAX_TOKENS = 128
+var MAX_TOKENS = 2048
 var DECODE_TOKEN_OFFSET = 256
 
 class ModelLoadFailException : Exception("Failed to load model, please try again")
