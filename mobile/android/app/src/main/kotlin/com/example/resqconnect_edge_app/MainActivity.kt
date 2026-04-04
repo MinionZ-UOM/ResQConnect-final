@@ -73,7 +73,6 @@ class MainActivity : FlutterActivity() {
                                     runOnUiThread {
                                         inferenceInFlight.set(false)
                                         result.success(responseText ?: "")
-                                        modelInstance?.resetSession()
                                     }
                                 }
 

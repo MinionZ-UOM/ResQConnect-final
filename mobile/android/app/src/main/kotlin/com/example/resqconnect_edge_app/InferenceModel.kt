@@ -2,7 +2,11 @@ package com.example.resqconnect_edge_app
 
 import android.content.Context
 import android.util.Log
+import com.google.common.util.concurrent.FutureCallback
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.MoreExecutors
+import com.google.common.util.concurrent.SettableFuture
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession.LlmInferenceSessionOptions
@@ -14,10 +18,17 @@ var DECODE_TOKEN_OFFSET = 256
 class ModelLoadFailException : Exception("Failed to load model, please try again")
 class ModelSessionCreateFailException : Exception("Failed to create model session, please try again")
 
+private data class ConversationTurn(
+    val role: String,
+    val content: String
+)
+
 class InferenceModel private constructor(context: Context) {
     private lateinit var llmInference: LlmInference
     private lateinit var llmInferenceSession: LlmInferenceSession
     private val TAG = InferenceModel::class.qualifiedName
+    private val conversationTurns = mutableListOf<ConversationTurn>()
+    private val maxHistoryTurns = 20
 
     init {
         if (!modelExists(context)) throw IllegalArgumentException("Model not found at path: ${Model.QWEN2_0_5B_INSTRUCT.path}")
@@ -53,9 +64,41 @@ class InferenceModel private constructor(context: Context) {
         }
     }
 
+    @Synchronized
+    private fun addTurn(role: String, content: String) {
+        val normalized = content.trim()
+        if (normalized.isEmpty()) return
+        conversationTurns.add(ConversationTurn(role = role, content = normalized))
+        // Bound in-memory conversation state to protect app-side prompt management.
+        if (conversationTurns.size > maxHistoryTurns) {
+            val toDrop = conversationTurns.size - maxHistoryTurns
+            repeat(toDrop) { conversationTurns.removeAt(0) }
+        }
+    }
+
     fun generateResponseAsync(prompt: String, progressListener: ProgressListener<String>): ListenableFuture<String> {
+        addTurn("user", prompt)
         llmInferenceSession.addQueryChunk(prompt)
-        return llmInferenceSession.generateResponseAsync(progressListener)
+        val responseFuture = llmInferenceSession.generateResponseAsync(progressListener)
+        val wrappedFuture = SettableFuture.create<String>()
+
+        Futures.addCallback(
+            responseFuture,
+            object : FutureCallback<String> {
+                override fun onSuccess(responseText: String?) {
+                    val finalResponse = responseText ?: ""
+                    addTurn("assistant", finalResponse)
+                    wrappedFuture.set(finalResponse)
+                }
+
+                override fun onFailure(t: Throwable) {
+                    wrappedFuture.setException(t)
+                }
+            },
+            MoreExecutors.directExecutor()
+        )
+
+        return wrappedFuture
     }
 
     fun resetSession() {
