@@ -8,7 +8,8 @@ import 'metrics_recorder.dart';
 class LlmPlatformChannel {
   static const MethodChannel _channel = MethodChannel('llm_inference');
 
-  static final StreamController<Map<String, dynamic>> _progressController = StreamController.broadcast();
+  static final StreamController<Map<String, dynamic>> _downloadProgressController = StreamController.broadcast();
+  static final StreamController<Map<String, dynamic>> _inferenceProgressController = StreamController.broadcast();
   static bool _initialized = false;
 
   static void _initProgressListener() {
@@ -16,9 +17,15 @@ class LlmPlatformChannel {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'downloadProgress') {
         final Map<dynamic, dynamic> args = call.arguments;
-        _progressController.add({
+        _downloadProgressController.add({
           'downloaded': args['downloaded'] as int,
           'total': args['total'] as int,
+        });
+      } else if (call.method == 'inferenceProgress') {
+        final Map<dynamic, dynamic> args = call.arguments;
+        _inferenceProgressController.add({
+          'text': (args['text'] as String?) ?? '',
+          'done': (args['done'] as bool?) ?? false,
         });
       }
     });
@@ -27,7 +34,12 @@ class LlmPlatformChannel {
 
   static Stream<Map<String, dynamic>> get downloadProgress {
     _initProgressListener();
-    return _progressController.stream;
+    return _downloadProgressController.stream;
+  }
+
+  static Stream<Map<String, dynamic>> get inferenceProgress {
+    _initProgressListener();
+    return _inferenceProgressController.stream;
   }
 
   static Future<bool> downloadModel() async {
@@ -47,6 +59,7 @@ class LlmPlatformChannel {
   }
 
   static Future<String> generateResponse(String prompt) async {
+    _initProgressListener();
     final stopwatch = Stopwatch()..start();
     final int memoryBeforeBytes = ProcessInfo.currentRss;
     String response = '';

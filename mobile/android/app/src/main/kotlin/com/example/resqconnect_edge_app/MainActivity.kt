@@ -62,7 +62,21 @@ class MainActivity : FlutterActivity() {
                         val responseFuture = modelInstance?.generateResponseAsync(
                             prompt,
                             object : com.google.mediapipe.tasks.genai.llminference.ProgressListener<String> {
-                                override fun run(partialResult: String?, done: Boolean) {}
+                                override fun run(partialResult: String?, done: Boolean) {
+                                    runOnUiThread {
+                                        try {
+                                            mainChannel.invokeMethod(
+                                                "inferenceProgress",
+                                                mapOf(
+                                                    "text" to (partialResult ?: ""),
+                                                    "done" to done
+                                                )
+                                            )
+                                        } catch (_: Exception) {
+                                            // Keep generation resilient even if UI is not listening.
+                                        }
+                                    }
+                                }
                             }
                         )
 
