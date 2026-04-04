@@ -13,10 +13,12 @@ import kotlinx.coroutines.*
 import java.io.File
 import java.net.URL
 import android.content.Context
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "llm_inference"
     private var modelInstance: InferenceModel? = null
+    private val inferenceInFlight = AtomicBoolean(false)
 
     private lateinit var mainChannel: MethodChannel
 
@@ -42,6 +44,10 @@ class MainActivity : FlutterActivity() {
                 }
                 "generateResponse" -> {
                     val prompt = call.argument<String>("prompt") ?: ""
+                    if (!inferenceInFlight.compareAndSet(false, true)) {
+                        result.error("INFERENCE_BUSY", "Inference is already in progress.", null)
+                        return@setMethodCallHandler
+                    }
                     try {
                         if (modelInstance == null) {
                             modelInstance = InferenceModel.getInstance(this)
@@ -55,6 +61,7 @@ class MainActivity : FlutterActivity() {
                         )
 
                         if (responseFuture == null) {
+                            inferenceInFlight.set(false)
                             result.error("INFERENCE_UNAVAILABLE", "Inference engine is unavailable.", null)
                             return@setMethodCallHandler
                         }
@@ -64,6 +71,7 @@ class MainActivity : FlutterActivity() {
                             object : FutureCallback<String> {
                                 override fun onSuccess(responseText: String?) {
                                     runOnUiThread {
+                                        inferenceInFlight.set(false)
                                         result.success(responseText ?: "")
                                         modelInstance?.resetSession()
                                     }
@@ -71,6 +79,7 @@ class MainActivity : FlutterActivity() {
 
                                 override fun onFailure(t: Throwable) {
                                     runOnUiThread {
+                                        inferenceInFlight.set(false)
                                         result.error("INFERENCE_ERROR", t.message, null)
                                     }
                                 }
@@ -78,6 +87,7 @@ class MainActivity : FlutterActivity() {
                             MoreExecutors.directExecutor()
                         )
                     } catch (e: Exception) {
+                        inferenceInFlight.set(false)
                         result.error("INFERENCE_INIT_ERROR", e.message, null)
                     }
                 }
