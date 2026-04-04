@@ -3,6 +3,9 @@ package com.example.resqconnect_edge_app
 
 import android.os.Bundle
 import android.os.Environment
+import com.google.common.util.concurrent.FutureCallback
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.MoreExecutors
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -39,27 +42,43 @@ class MainActivity : FlutterActivity() {
                 }
                 "generateResponse" -> {
                     val prompt = call.argument<String>("prompt") ?: ""
-                    if (modelInstance == null) {
-                        modelInstance = InferenceModel.getInstance(this)
-                    }
-                    val responseFuture = modelInstance?.generateResponseAsync(
-                        prompt,
-                        object : com.google.mediapipe.tasks.genai.llminference.ProgressListener<String> {
-                            override fun run(partialResult: String?, done: Boolean) {}
+                    try {
+                        if (modelInstance == null) {
+                            modelInstance = InferenceModel.getInstance(this)
                         }
-                    )
-                    GlobalScope.launch(Dispatchers.IO) {
-                        try {
-                            val res = responseFuture?.get() ?: ""
-                            withContext(Dispatchers.Main) {
-                                result.success(res)
-                                modelInstance?.resetSession()
+
+                        val responseFuture = modelInstance?.generateResponseAsync(
+                            prompt,
+                            object : com.google.mediapipe.tasks.genai.llminference.ProgressListener<String> {
+                                override fun run(partialResult: String?, done: Boolean) {}
                             }
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                result.error("INFERENCE_ERROR", e.message, null)
-                            }
+                        )
+
+                        if (responseFuture == null) {
+                            result.error("INFERENCE_UNAVAILABLE", "Inference engine is unavailable.", null)
+                            return@setMethodCallHandler
                         }
+
+                        Futures.addCallback(
+                            responseFuture,
+                            object : FutureCallback<String> {
+                                override fun onSuccess(responseText: String?) {
+                                    runOnUiThread {
+                                        result.success(responseText ?: "")
+                                        modelInstance?.resetSession()
+                                    }
+                                }
+
+                                override fun onFailure(t: Throwable) {
+                                    runOnUiThread {
+                                        result.error("INFERENCE_ERROR", t.message, null)
+                                    }
+                                }
+                            },
+                            MoreExecutors.directExecutor()
+                        )
+                    } catch (e: Exception) {
+                        result.error("INFERENCE_INIT_ERROR", e.message, null)
                     }
                 }
                 "getPublicDownloadsDirectory" -> {
