@@ -11,6 +11,8 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession.LlmInferenceSessionOptions
 import com.google.mediapipe.tasks.genai.llminference.ProgressListener
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 var MAX_TOKENS = 2048
 var DECODE_TOKEN_OFFSET = 256
@@ -27,6 +29,7 @@ class InferenceModel private constructor(context: Context) {
     private lateinit var llmInference: LlmInference
     private lateinit var llmInferenceSession: LlmInferenceSession
     private val TAG = InferenceModel::class.qualifiedName
+    private val appContext = context.applicationContext
     private val conversationTurns = mutableListOf<ConversationTurn>()
     private val maxHistoryTurns = 20
     @Volatile
@@ -39,31 +42,98 @@ class InferenceModel private constructor(context: Context) {
     }
 
     private fun createEngine(context: Context) {
-        val options = LlmInference.LlmInferenceOptions.builder()
+        val preferredBackend = resolvePreferredBackend(context)
+        var options = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(Model.QWEN2_0_5B_INSTRUCT.path)
             .setMaxTokens(MAX_TOKENS)
-            .setPreferredBackend(LlmInference.Backend.CPU)
+            .setPreferredBackend(preferredBackend)
             .build()
         try {
             llmInference = LlmInference.createFromOptions(context, options)
+            persistBackend(preferredBackend)
         } catch (e: Exception) {
+            if (preferredBackend != LlmInference.Backend.CPU) {
+                Log.w(TAG, "Preferred backend $preferredBackend failed, falling back to CPU: ${e.message}")
+                options = LlmInference.LlmInferenceOptions.builder()
+                    .setModelPath(Model.QWEN2_0_5B_INSTRUCT.path)
+                    .setMaxTokens(MAX_TOKENS)
+                    .setPreferredBackend(LlmInference.Backend.CPU)
+                    .build()
+                try {
+                    llmInference = LlmInference.createFromOptions(context, options)
+                    persistBackend(LlmInference.Backend.CPU)
+                    return
+                } catch (cpuEx: Exception) {
+                    Log.e(TAG, "Load model error after CPU fallback: ${cpuEx.message}", cpuEx)
+                    throw ModelLoadFailException()
+                }
+            }
             Log.e(TAG, "Load model error: ${e.message}", e)
             throw ModelLoadFailException()
         }
     }
 
-    private fun createSession() {
-        val sessionOptions = LlmInferenceSessionOptions.builder()
+    private fun buildSessionOptions(): LlmInferenceSessionOptions {
+        return LlmInferenceSessionOptions.builder()
             .setTemperature(Model.QWEN2_0_5B_INSTRUCT.temperature)
             .setTopK(Model.QWEN2_0_5B_INSTRUCT.topK)
             .setTopP(Model.QWEN2_0_5B_INSTRUCT.topP)
             .build()
+    }
+
+    private fun createSession() {
+        val sessionOptions = buildSessionOptions()
         try {
             llmInferenceSession = LlmInferenceSession.createFromOptions(llmInference, sessionOptions)
         } catch (e: Exception) {
             Log.e(TAG, "Session create error: ${e.message}", e)
             throw ModelSessionCreateFailException()
         }
+    }
+
+    private fun backendFromName(name: String?): LlmInference.Backend? {
+        if (name.isNullOrBlank()) return null
+        return LlmInference.Backend.values().firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+
+    private fun persistBackend(backend: LlmInference.Backend) {
+        appContext.getSharedPreferences("llm_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("inference_backend", backend.name)
+            .apply()
+    }
+
+    private fun canCreateEngineWithBackend(context: Context, backend: LlmInference.Backend): Boolean {
+        return try {
+            val probeOptions = LlmInference.LlmInferenceOptions.builder()
+                .setModelPath(Model.QWEN2_0_5B_INSTRUCT.path)
+                .setMaxTokens(MAX_TOKENS)
+                .setPreferredBackend(backend)
+                .build()
+            val probeEngine = LlmInference.createFromOptions(context, probeOptions)
+            probeEngine.close()
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Backend probe failed for $backend: ${e.message}")
+            false
+        }
+    }
+
+    private fun resolvePreferredBackend(context: Context): LlmInference.Backend {
+        val prefs = appContext.getSharedPreferences("llm_prefs", Context.MODE_PRIVATE)
+        val savedBackend = backendFromName(prefs.getString("inference_backend", null))
+        if (savedBackend != null && canCreateEngineWithBackend(context, savedBackend)) {
+            return savedBackend
+        }
+
+        val preferredOrder = listOf("GPU", "NNAPI", "NPU", "CPU")
+        for (backendName in preferredOrder) {
+            val backend = backendFromName(backendName) ?: continue
+            if (canCreateEngineWithBackend(context, backend)) {
+                return backend
+            }
+        }
+        return LlmInference.Backend.CPU
     }
 
     @Synchronized
@@ -142,6 +212,32 @@ class InferenceModel private constructor(context: Context) {
         Log.d(TAG, "Session reset successfully with conversation rehydration")
     }
 
+    fun warmup(timeoutMs: Long = 2500L) {
+        var warmupSession: LlmInferenceSession? = null
+        try {
+            warmupSession = LlmInferenceSession.createFromOptions(llmInference, buildSessionOptions())
+            warmupSession.addQueryChunk("warmup")
+            val warmupFuture = warmupSession.generateResponseAsync(
+                object : ProgressListener<String> {
+                    override fun run(partialResult: String?, done: Boolean) {}
+                }
+            )
+            try {
+                warmupFuture.get(timeoutMs, TimeUnit.MILLISECONDS)
+            } catch (e: TimeoutException) {
+                warmupFuture.cancel(true)
+                Log.w(TAG, "Warmup timed out after ${timeoutMs}ms")
+            }
+            Log.d(TAG, "Model warmup completed")
+        } catch (e: Exception) {
+            Log.w(TAG, "Warmup failed: ${e.message}")
+        } finally {
+            try {
+                warmupSession?.close()
+            } catch (_: Exception) {}
+        }
+    }
+
     fun closeModel() {
         try {
             llmInferenceSession.close()
@@ -154,6 +250,7 @@ class InferenceModel private constructor(context: Context) {
 
     companion object {
         private var instance: InferenceModel? = null
+        @Synchronized
         fun getInstance(context: Context): InferenceModel {
             return instance ?: InferenceModel(context).also { instance = it }
         }

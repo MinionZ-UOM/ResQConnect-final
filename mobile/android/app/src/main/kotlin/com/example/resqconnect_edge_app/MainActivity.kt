@@ -19,6 +19,9 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "llm_inference"
     private var modelInstance: InferenceModel? = null
     private val inferenceInFlight = AtomicBoolean(false)
+    private val modelReady = AtomicBoolean(false)
+    private val warmupInFlight = AtomicBoolean(false)
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private lateinit var mainChannel: MethodChannel
 
@@ -41,6 +44,9 @@ class MainActivity : FlutterActivity() {
                 }
                 "isModelDownloaded" -> {
                     result.success(isModelDownloaded())
+                }
+                "isModelReady" -> {
+                    result.success(modelReady.get())
                 }
                 "generateResponse" -> {
                     val prompt = call.argument<String>("prompt") ?: ""
@@ -72,6 +78,7 @@ class MainActivity : FlutterActivity() {
                                 override fun onSuccess(responseText: String?) {
                                     runOnUiThread {
                                         inferenceInFlight.set(false)
+                                        modelReady.set(true)
                                         result.success(responseText ?: "")
                                     }
                                 }
@@ -96,6 +103,15 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        if (InferenceModel.modelExists(this)) {
+            prewarmModelAsync()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        activityScope.cancel()
     }
 
     private fun isModelDownloaded(): Boolean {
@@ -139,7 +155,10 @@ class MainActivity : FlutterActivity() {
             // Save model path to SharedPreferences
             val prefs = getSharedPreferences("llm_prefs", Context.MODE_PRIVATE)
             prefs.edit().putString("model_path", destFile.absolutePath).apply()
-            modelInstance = InferenceModel.getInstance(this)
+            InferenceModel.resetInstance(this)
+            modelInstance = null
+            modelReady.set(false)
+            prewarmModelAsync()
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -163,6 +182,22 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        }
+    }
+
+    private fun prewarmModelAsync() {
+        if (!warmupInFlight.compareAndSet(false, true)) return
+        activityScope.launch(Dispatchers.IO) {
+            try {
+                val instance = InferenceModel.getInstance(this@MainActivity)
+                modelInstance = instance
+                instance.warmup()
+                modelReady.set(true)
+            } catch (e: Exception) {
+                modelReady.set(false)
+            } finally {
+                warmupInFlight.set(false)
+            }
         }
     }
 }
