@@ -6,11 +6,8 @@ import HelpRequestTab from "./tab-sections/help-request-tab";
 import TrackRequestsTab from "./tab-sections/track-requests-tab";
 import ChatTab from "../components/chat-tab";
 import MapTab from "../components/map-tab";
-import { getMockHelpRequests } from "@/lib/mock-data";
 
 export default function IndividualDashboardPage() {
-  const requests = getMockHelpRequests();
-
   return (
     <div className="flex flex-col gap-4">
       <Tabs defaultValue="help" className="w-full">
@@ -33,7 +30,7 @@ export default function IndividualDashboardPage() {
           <HelpRequestTab />
         </TabsContent>
         <TabsContent value="track" className="mt-4" id="track">
-          <TrackRequestsTab requests={requests} />
+          <TrackRequestsTab />
         </TabsContent>
         <TabsContent value="map" className="mt-4" id="map">
           <MapTab />

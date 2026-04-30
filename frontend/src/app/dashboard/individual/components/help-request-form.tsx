@@ -52,6 +52,63 @@ type SpeechRecognitionWindow = Window & {
 const MAX_IMAGE_MB = 8;
 const ALLOWED_IMG_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
+const isFiniteCoordinate = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const parseCoordinatesFromText = (value?: string): { lat: number; lng: number } | null => {
+  if (!value) return null;
+
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+  return { lat, lng };
+};
+
+const getReadableErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const apiError = error as {
+      message?: unknown;
+      data?: {
+        detail?: unknown;
+      };
+    };
+
+    if (typeof apiError.message === "string" && apiError.message.trim()) {
+      return apiError.message;
+    }
+
+    const detail = apiError.data?.detail;
+    if (typeof detail === "string" && detail.trim()) {
+      return detail;
+    }
+
+    if (Array.isArray(detail)) {
+      const detailMessages = detail
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return null;
+          const msg = (entry as { msg?: unknown }).msg;
+          return typeof msg === "string" ? msg : null;
+        })
+        .filter((msg): msg is string => Boolean(msg));
+
+      if (detailMessages.length > 0) {
+        return detailMessages.join("; ");
+      }
+    }
+  }
+
+  return "An error occurred while submitting your request.";
+};
+
 const formSchema = z.object({
   disaster: z.string().min(1, "Please select a disaster."),
   title: z.string().min(5, "Title must be at least 5 characters."),
@@ -61,8 +118,10 @@ const formSchema = z.object({
     lng: z.number().nullable(),
     address: z.string().optional(),
   }).refine(
-    (loc) => (loc.lat && loc.lng) || (loc.address && loc.address.trim().length > 0),
-    { message: "Provide location via GPS or enter an address." }
+    (loc) =>
+      (isFiniteCoordinate(loc.lat) && isFiniteCoordinate(loc.lng)) ||
+      parseCoordinatesFromText(loc.address) !== null,
+    { message: "Use GPS or enter coordinates as lat,lng (example: 6.9271,79.8612)." }
   ),
   photos: z.array(z.instanceof(File)).max(8).optional(),
   voiceTranscript: z.string().optional(),
@@ -99,6 +158,10 @@ export default function HelpRequestForm({ onSubmit }: Props) {
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const photos = watch("photos") ?? [];
   const voiceTranscript = watch("voiceTranscript");
+  const locationLat = watch("location.lat");
+  const locationLng = watch("location.lng");
+  const locationAddress = watch("location.address");
+  const parsedInputCoordinates = parseCoordinatesFromText(locationAddress ?? "");
   const pickPhotos = () => photoInputRef.current?.click();
   const onPhotosSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -249,55 +312,72 @@ export default function HelpRequestForm({ onSubmit }: Props) {
         setGeoLoading(false);
       },
       () => {
-        // Leave lat/lng null so user must type address
+        // Leave lat/lng null so user can enter coordinates manually
         setGeoLoading(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, [setValue]);
 
-    const submitForm = async (data: FormData) => {
-  try {
-    let uploads: Uploaded[] = [];
-    if (data.photos?.length) {
-      try {
-        uploads = await uploadFilesToS3(data.photos);
-        console.log("Uploaded photos:", uploads);
-      } catch (uploadError) {
-        console.error("Failed to upload photos to S3. Proceeding without images.", uploadError);
-      }
+  const submitForm = async (data: FormData) => {
+    const manualCoordinates = parseCoordinatesFromText(data.location.address);
+    const lat = isFiniteCoordinate(data.location.lat) ? data.location.lat : manualCoordinates?.lat;
+    const lng = isFiniteCoordinate(data.location.lng) ? data.location.lng : manualCoordinates?.lng;
+    const trimmedAddress = data.location.address?.trim();
+
+    if (!isFiniteCoordinate(lat) || !isFiniteCoordinate(lng)) {
+      toast({
+        title: "Invalid location",
+        description: "Use GPS or enter coordinates in lat,lng format.",
+        variant: "destructive",
+      });
+      return;
     }
-    const imageUrls = uploads.map((u) => u.url);
 
-    const payload: HelpRequestCreate = {
-      disaster_id: data.disaster,
-      type_of_need: "general",
-      description: data.details,
-      title: data.title,
-      location: {
-        lat: data.location.lat,
-        lng: data.location.lng,
-        address: data.location.address || undefined,
-      },
-      media: imageUrls.map(url => ({ url, type: "image" })),
-    };
+    if (!isFiniteCoordinate(data.location.lat) || !isFiniteCoordinate(data.location.lng)) {
+      setValue("location.lat", lat, { shouldDirty: true, shouldValidate: true });
+      setValue("location.lng", lng, { shouldDirty: true, shouldValidate: true });
+    }
 
-    await onSubmit(payload);
+    try {
+      let uploads: Uploaded[] = [];
+      if (data.photos?.length) {
+        try {
+          uploads = await uploadFilesToS3(data.photos);
+          console.log("Uploaded photos:", uploads);
+        } catch (uploadError) {
+          console.error("Failed to upload photos to S3. Proceeding without images.", uploadError);
+        }
+      }
+      const imageUrls = uploads.map((u) => u.url);
 
-    toast({
-      title: "✅ Help request submitted",
-      description: "Your request has been sent successfully.",
-    });
-  } catch (error: any) {
-    toast({
-      title: "❌ Upload failed",
-      description: error.message || "An error occurred while submitting your request.",
-      variant: "destructive",
-    });
-  }
-};
+      const payload: RequestCreatePayload = {
+        disaster_id: data.disaster,
+        type_of_need: "general",
+        description: data.details,
+        title: data.title,
+        location: {
+          lat,
+          lng,
+          address: trimmedAddress || undefined,
+        },
+        media: imageUrls.map((url) => ({ url, type: "image" })),
+      };
 
+      await onSubmit(payload);
 
+      toast({
+        title: "Help request submitted",
+        description: "Your request has been sent successfully.",
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Submission failed",
+        description: getReadableErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit(submitForm)}>
@@ -356,7 +436,7 @@ export default function HelpRequestForm({ onSubmit }: Props) {
           <Label className="text-lg font-semibold">Location</Label>
           <div className="flex gap-2">
             <Input {...register("location.address")}
-                  placeholder="Type address or landmark (required if GPS fails)"
+                  placeholder="Use GPS or enter coordinates as lat,lng"
                   className="h-12" />
             <Button type="button" variant="outline" size="icon"
                     className="h-12 w-12" onClick={geolocate}>
@@ -364,15 +444,15 @@ export default function HelpRequestForm({ onSubmit }: Props) {
             </Button>
           </div>
 
-          {(watch("location.lat") && watch("location.lng")) || watch("location.address") ? (
+          {(isFiniteCoordinate(locationLat) && isFiniteCoordinate(locationLng)) || parsedInputCoordinates ? (
             <p className="text-sm text-muted-foreground">
-              {watch("location.lat") && watch("location.lng")
-                ? `lat ${watch("location.lat")?.toFixed(5)} | lng ${watch("location.lng")?.toFixed(5)}`
-                : "📍 Address provided"}
+              {isFiniteCoordinate(locationLat) && isFiniteCoordinate(locationLng)
+                ? `lat ${locationLat.toFixed(5)} | lng ${locationLng.toFixed(5)}`
+                : `lat ${parsedInputCoordinates?.lat.toFixed(5)} | lng ${parsedInputCoordinates?.lng.toFixed(5)}`}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              📍 Location not available — please enter an address
+              Location not available. Use GPS or enter coordinates as lat,lng.
             </p>
           )}
           {errors.location && <p className="text-destructive text-sm">{errors.location.message}</p>}
@@ -417,7 +497,7 @@ export default function HelpRequestForm({ onSubmit }: Props) {
           />
           {errors.photos && <p className="text-destructive text-sm">{errors.photos.message as string}</p>}
           <p className="text-sm xs:text-base text-slate-700">
-            Up to 8 photos • JPG/PNG/WebP/HEIC • ≤ {MAX_IMAGE_MB}MB each
+            Up to 8 photos JPG/PNG/WebP/HEIC {MAX_IMAGE_MB}MB each
           </p>
         </div>
 
@@ -467,7 +547,7 @@ export default function HelpRequestForm({ onSubmit }: Props) {
 
           {transcribing && (
             <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Transcribing voice note…
+              <Loader2 className="h-4 w-4 animate-spin" /> Transcribing voice noteâ€¦
             </p>
           )}
 
@@ -482,7 +562,7 @@ export default function HelpRequestForm({ onSubmit }: Props) {
             <p className="text-sm text-destructive">{transcriptionError}</p>
           )}
 
-          <p className="text-sm text-slate-700 mt-1">Max 25MB • Recorded as WebM (browser-native)</p>
+          <p className="text-sm text-slate-700 mt-1">Max 25MB Recorded as WebM (browser-native)</p>
         </div>
       </CardContent>
 
@@ -495,3 +575,4 @@ export default function HelpRequestForm({ onSubmit }: Props) {
     </form>
   );
 }
+

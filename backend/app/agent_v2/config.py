@@ -33,7 +33,7 @@ def load_prompt(name: str) -> str:
         return data.get("prompt", "")
 
 class AppConfig(BaseModel):
-    openai_api_key: str = "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"
+    openai_api_key: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", "").strip())
     models: ModelSettings = ModelSettings()
     extraction: ExtractionConfig = ExtractionConfig()
 

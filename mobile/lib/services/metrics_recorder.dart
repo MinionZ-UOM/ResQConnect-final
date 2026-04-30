@@ -175,7 +175,11 @@ class MetricsRecorder extends ChangeNotifier {
     if (exportedFile == null) {
       Directory? directory;
       if (!kIsWeb) {
-        directory = await getDownloadsDirectory();
+        try {
+          directory = await getDownloadsDirectory();
+        } catch (_) {
+          directory = null;
+        }
       }
 
       directory ??= await getApplicationDocumentsDirectory();
@@ -190,6 +194,13 @@ class MetricsRecorder extends ChangeNotifier {
   Future<void> clear() async {
     await ensureInitialized();
     _entries.clear();
+    await _persist();
+    notifyListeners();
+  }
+
+  Future<void> removeEntry(MetricEntry entry) async {
+    await ensureInitialized();
+    _entries.remove(entry);
     await _persist();
     notifyListeners();
   }

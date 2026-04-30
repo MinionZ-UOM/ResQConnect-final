@@ -55,11 +55,13 @@ class LlmPlatformChannel {
 
     try {
       response = await _channel.invokeMethod('generateResponse', {'prompt': prompt});
+      // Clean up the response
+      response = _cleanResponse(response);
       success = true;
       return response;
     } catch (error) {
       errorMessage = error.toString();
-      return '';
+      return errorMessage;
     } finally {
       stopwatch.stop();
       final int memoryAfterBytes = ProcessInfo.currentRss;
@@ -102,5 +104,48 @@ class LlmPlatformChannel {
       return 0;
     }
     return trimmed.split(RegExp(r'\s+')).length;
+  }
+
+  static String _cleanResponse(String response) {
+    // Remove all special tokens and artifacts
+    var cleaned = response
+        // Remove special tokens: <|xxx|>, <xxx|>, <[xxx|>, etc.
+        .replaceAll(RegExp(r'<[|\[\w_]*[|>\]]*>'), '')
+        .replaceAll(RegExp(r'<[a-z_]*\|?'), '')
+        .replaceAll(RegExp(r'\|>'), '')
+        // Remove common artifact tags
+        .replaceAll(RegExp(r'<source.*?>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<lim_.*?>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<im_.*?>', caseSensitive: false), '')
+        // Remove system prompts
+        .replaceAll('You are a helpful assistant.', '')
+        .replaceAll('assistant', '')
+        // Clean up whitespace
+        .replaceAll(RegExp(r'\n\s*\n'), '\n')
+        .replaceAll(RegExp(r'  +'), ' ')
+        .trim();
+
+    // Extract only the first coherent response (stop at question marks that indicate new queries)
+    final sentences = cleaned.split(RegExp(r'(?<=[.!?])\s+'));
+    
+    // Take first 2-3 sentences or until we hit a question that looks like new prompt
+    List<String> result = [];
+    for (var sentence in sentences) {
+      if (sentence.isEmpty) continue;
+      
+      // Stop if we hit common prompt patterns (new questions from the conversation)
+      if (sentence.toLowerCase().contains('what should i do') ||
+          sentence.toLowerCase().contains('how do i') ||
+          sentence.toLowerCase().contains('should i')) {
+        break;
+      }
+      
+      result.add(sentence);
+      
+      // Limit to 3 sentences to avoid too long responses
+      if (result.length >= 3) break;
+    }
+
+    return result.join(' ').trim();
   }
 }

@@ -12,7 +12,7 @@ class OpenAIProvider(BaseProvider):
 
     def __init__(self, temperature: float = 0.7, model_name: str | None = None) -> None:
         super().__init__(temperature)
-        api_key = "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"
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
             raise EnvironmentError(
                 "OPENAI_API_KEY environment variable is required but not set."

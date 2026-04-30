@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from '@/lib/http';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http';
 import type {
   Request,
   RequestApiResponse,
@@ -6,6 +6,8 @@ import type {
   RequestStatusUpdatePayload,
 } from '@/lib/types/request';
 import { mapRequest } from '@/lib/utils/mapRequest';
+
+export const MY_REQUESTS_QUERY_KEY = ['my-requests'] as const;
 
 export const createRequest = async (payload: RequestCreatePayload): Promise<Request> => {
   const response = await apiPost<RequestApiResponse>('/requests', payload);
@@ -38,4 +40,8 @@ export const updateRequestStatus = async (
 export const getRequestsByDisaster = async (disasterId: string): Promise<Request[]> => {
   const response = await apiGet<RequestApiResponse[]>(`/requests/disaster/${disasterId}`);
   return response.map(mapRequest);
+};
+
+export const deleteRequest = async (requestId: string): Promise<void> => {
+  await apiDelete<void>(`/requests/${requestId}`);
 };
