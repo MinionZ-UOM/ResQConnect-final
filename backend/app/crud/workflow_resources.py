@@ -13,13 +13,48 @@ from app.schemas.workflow import (
 )
 
 
+def _normalize_resource_payload(entry: Dict, *, fallback_resource_id: str) -> Dict:
+    """Normalize resource payloads so strict schema parsing remains backwards-compatible."""
+
+    if isinstance(entry, dict):
+        resource = dict(entry)
+    else:
+        resource = {}
+    raw_resource_id = resource.get("resource_id") or resource.get("id")
+    normalized_resource_id = str(raw_resource_id).strip() if raw_resource_id is not None else ""
+    if not normalized_resource_id:
+        normalized_resource_id = fallback_resource_id
+
+    resource["resource_id"] = normalized_resource_id
+    return resource
+
+
 def _resource_from_dict(entry: Dict) -> WorkflowResource:
-    return WorkflowResource(**entry)
+    resource_id = (
+        str(entry.get("resource_id")).strip()
+        if isinstance(entry, dict) and entry.get("resource_id") is not None
+        else ""
+    )
+    normalized = _normalize_resource_payload(
+        entry,
+        fallback_resource_id=resource_id or uuid4().hex,
+    )
+    return WorkflowResource(**normalized)
 
 
 def list_resources(request_id: str) -> List[WorkflowResource]:
     _, data = get_snapshot(request_id)
-    return [_resource_from_dict(entry) for entry in data.get("resource_suggestions", [])]
+    resources: List[WorkflowResource] = []
+    for index, entry in enumerate(data.get("resource_suggestions", [])):
+        normalized = _normalize_resource_payload(
+            entry,
+            fallback_resource_id=f"{request_id}-resource-{index + 1}",
+        )
+        try:
+            resources.append(_resource_from_dict(normalized))
+        except Exception:
+            continue
+    return resources
 
 
 def get_resource(request_id: str, resource_id: str) -> Optional[WorkflowResource]:
@@ -36,7 +71,8 @@ def create_resource(request_id: str, payload: WorkflowResourceCreate) -> Workflo
 
     now = datetime.now(timezone.utc)
     resource_dict = payload.dict(by_alias=False)
-    resource_dict.setdefault("resource_id", uuid4().hex)
+    if not resource_dict.get("resource_id"):
+        resource_dict["resource_id"] = uuid4().hex
     resource_dict.setdefault("approval_status", ApprovalStatus.PENDING)
     if any(entry.get("resource_id") == resource_dict["resource_id"] for entry in resources):
         raise ValueError("Resource with this id already exists")
@@ -63,12 +99,17 @@ def update_resource(request_id: str, resource_id: str, payload: WorkflowResource
     updated = None
     now = datetime.now(timezone.utc)
     for idx, entry in enumerate(resources):
-        if entry.get("resource_id") == resource_id:
+        normalized_entry = _normalize_resource_payload(
+            entry,
+            fallback_resource_id=f"{request_id}-resource-{idx + 1}",
+        )
+        if normalized_entry.get("resource_id") == resource_id:
             updates = payload.dict(exclude_unset=True)
-            entry.update(updates)
-            entry["updated_at"] = now
-            resources[idx] = entry
-            updated = entry
+            normalized_entry.update(updates)
+            normalized_entry["resource_id"] = resource_id
+            normalized_entry["updated_at"] = now
+            resources[idx] = normalized_entry
+            updated = normalized_entry
             break
 
     if not updated:
@@ -84,7 +125,16 @@ def update_resource(request_id: str, resource_id: str, payload: WorkflowResource
 def delete_resource(request_id: str, resource_id: str) -> None:
     doc_ref, data = get_snapshot(request_id)
     resources = data.get("resource_suggestions", [])
-    new_resources = [entry for entry in resources if entry.get("resource_id") != resource_id]
+    new_resources: List[Dict] = []
+    for idx, entry in enumerate(resources):
+        normalized_entry = _normalize_resource_payload(
+            entry,
+            fallback_resource_id=f"{request_id}-resource-{idx + 1}",
+        )
+        if normalized_entry.get("resource_id") == resource_id:
+            continue
+        new_resources.append(normalized_entry)
+
     if len(new_resources) == len(resources):
         raise ValueError("Resource not found")
 

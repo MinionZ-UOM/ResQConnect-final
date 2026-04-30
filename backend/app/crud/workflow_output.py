@@ -51,9 +51,36 @@ def _to_resource(obj: Dict) -> WorkflowResource:
     return WorkflowResource(**obj)
 
 
+def _normalize_resource_payload(resource: Dict, *, fallback_resource_id: str) -> Dict:
+    """Normalize resource payloads so strict schema parsing remains backwards-compatible."""
+
+    if isinstance(resource, dict):
+        entry = dict(resource)
+    else:
+        entry = {}
+
+    # Support both modern ``resource_id`` and legacy/aliased ``id`` fields.
+    raw_resource_id = entry.get("resource_id") or entry.get("id")
+    normalized_resource_id = str(raw_resource_id).strip() if raw_resource_id is not None else ""
+    if not normalized_resource_id:
+        normalized_resource_id = fallback_resource_id
+
+    entry["resource_id"] = normalized_resource_id
+    return entry
+
+
 def _to_output(request_id: str, data: Dict) -> WorkflowOutput:
     tasks = [_to_task(t) for t in data.get("tasks", [])]
-    resources = [_to_resource(r) for r in data.get("resource_suggestions", [])]
+    resources: List[WorkflowResource] = []
+    for index, resource in enumerate(data.get("resource_suggestions", [])):
+        normalized = _normalize_resource_payload(
+            resource,
+            fallback_resource_id=f"{request_id}-resource-{index + 1}",
+        )
+        try:
+            resources.append(_to_resource(normalized))
+        except Exception:
+            continue
     payload = {
         "workflow_run_id": data.get("workflow_run_id") or data.get("workflow_id"),
         "request_id": request_id,
