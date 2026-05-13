@@ -163,3 +163,18 @@ From the `backend` directory with virtual environment active:
 ```bash
 celery -A app.celery_config.celery_app worker --loglevel=info --pool=solo
 ```
+
+## Load Testing With Visuals (Locust)
+
+For load/performance testing with built-in charts and HTML reports, see:
+
+- `docs/LOAD_TESTING.md`
+
+Quick start:
+
+```bash
+pip install -r requirements-loadtest.txt
+locust -f loadtests/locustfile.py --host=http://localhost:8000
+```
+
+Open `http://localhost:8089` for live graphs.
