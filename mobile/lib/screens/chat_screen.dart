@@ -17,6 +17,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<_ChatMessage> _messages = [];
   bool _isThinking = false;
   final ScrollController _scrollController = ScrollController();
+  StreamSubscription<String>? _responseSubscription;
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _controller.clear();
     setState(() {
       _messages.add(_ChatMessage(userText, true));
+      _messages.add(_ChatMessage('', false));
       _isThinking = true;
     });
 
@@ -40,11 +42,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final ruleResponse = _getRuleBasedResponse(userText);
       if (ruleResponse != null) {
         print('DEBUG: Using rule-based response');
-        // Add 5 second thinking delay for better UX
-        await Future.delayed(const Duration(seconds: 2));
+        // Simulate streaming for rule-based responses
+        await _streamRuleBasedResponse(ruleResponse);
         if (mounted) {
           setState(() {
-            _messages.add(_ChatMessage(ruleResponse, false));
             _isThinking = false;
           });
         }
@@ -67,12 +68,45 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       
       print('DEBUG: Generating response for: $userText');
+
+      // Stream partial response tokens as they arrive
+      _responseSubscription?.cancel();
+      _responseSubscription = LlmPlatformChannel.responseStream.listen(
+        (token) {
+          if (!mounted) return;
+          if (token == '[DONE]') return;
+          setState(() {
+            final lastIndex = _messages.length - 1;
+            if (lastIndex >= 0 && !_messages[lastIndex].isUser) {
+              final existing = _messages[lastIndex].text;
+              _messages[lastIndex] = _ChatMessage('$existing$token', false);
+            }
+          });
+          _scrollToBottom();
+        },
+        onError: (error) {
+          if (!mounted) return;
+          setState(() {
+            final lastIndex = _messages.length - 1;
+            if (lastIndex >= 0 && !_messages[lastIndex].isUser) {
+              _messages[lastIndex] = _ChatMessage('Error: $error', false);
+            }
+            _isThinking = false;
+          });
+        },
+      );
+
       String responseText = await LlmPlatformChannel.generateResponse(userText);
       print('DEBUG: Got response: $responseText');
 
       if (mounted) {
         setState(() {
-          _messages.add(_ChatMessage(responseText, false));
+          final lastIndex = _messages.length - 1;
+          if (lastIndex >= 0 && !_messages[lastIndex].isUser) {
+            _messages[lastIndex] = _ChatMessage(responseText, false);
+          } else {
+            _messages.add(_ChatMessage(responseText, false));
+          }
           _isThinking = false;
         });
       }
@@ -84,6 +118,47 @@ class _ChatScreenState extends State<ChatScreen> {
           _isThinking = false;
         });
       }
+    } finally {
+      _responseSubscription?.cancel();
+      _responseSubscription = null;
+    }
+  }
+
+  Future<void> _streamRuleBasedResponse(String response) async {
+    // Split response into words while preserving spaces and newlines
+    final pattern = RegExp(r'\S+|\s+');
+    final matches = pattern.allMatches(response);
+    
+    // Add a small initial delay to simulate thinking
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    for (final match in matches) {
+      if (!mounted) break;
+      
+      final word = match.group(0) ?? '';
+      
+      setState(() {
+        final lastIndex = _messages.length - 1;
+        if (lastIndex >= 0 && !_messages[lastIndex].isUser) {
+          final existing = _messages[lastIndex].text;
+          _messages[lastIndex] = _ChatMessage('$existing$word', false);
+        }
+      });
+      
+      _scrollToBottom();
+      
+      // Emit words at variable speeds to simulate natural streaming
+      // Longer words and punctuation get slightly more delay
+      int delayMs = 20;
+      if (word.contains('\n')) {
+        delayMs = 50;
+      } else if (word.endsWith('.') || word.endsWith('!') || word.endsWith('?')) {
+        delayMs = 60;
+      } else if (word.length > 8) {
+        delayMs = 30;
+      }
+      
+      await Future.delayed(Duration(milliseconds: delayMs));
     }
   }
 
@@ -331,6 +406,15 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _responseSubscription?.cancel();
+    _responseSubscription = null;
+    _scrollController.dispose();
+    _controller.dispose();
+    super.dispose();
   }
 }
 

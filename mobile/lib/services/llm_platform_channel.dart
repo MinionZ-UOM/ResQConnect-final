@@ -7,9 +7,15 @@ import 'metrics_recorder.dart';
 
 class LlmPlatformChannel {
   static const MethodChannel _channel = MethodChannel('llm_inference');
+  static const EventChannel _streamChannel = EventChannel('llm_inference_stream');
 
   static final StreamController<Map<String, dynamic>> _progressController = StreamController.broadcast();
+  static final StreamController<String> _responseController = StreamController.broadcast();
+
+  static StreamSubscription? _streamSubscription;
   static bool _initialized = false;
+  static String _pendingFragment = '';
+  static int _firstTokenLatencyMs = 0;
 
   static void _initProgressListener() {
     if (_initialized) return;
@@ -23,6 +29,86 @@ class LlmPlatformChannel {
       }
     });
     _initialized = true;
+  }
+
+  static void _initResponseStreamListener() {
+    if (_streamSubscription != null) return;
+
+    _firstTokenLatencyMs = 0;
+    _streamSubscription = _streamChannel.receiveBroadcastStream().listen(
+      (event) {
+        print('DEBUG: Stream event received: $event');
+        if (event is Map) {
+          final text = (event['text'] as String?) ?? '';
+          final done = (event['done'] as bool?) ?? false;
+          final firstTokenLatency = (event['firstTokenLatencyMs'] as int?) ?? 0;
+          
+          // Capture first token latency (only set once)
+          if (firstTokenLatency > 0 && _firstTokenLatencyMs == 0) {
+            _firstTokenLatencyMs = firstTokenLatency;
+            print('DEBUG: First token latency captured: $_firstTokenLatencyMs ms');
+          }
+          
+          print('DEBUG: Processing chunk - text: "$text", done: $done');
+          _processStreamChunk(text, done);
+        } else if (event is String) {
+          print('DEBUG: Processing string chunk: "$event"');
+          _processStreamChunk(event, false);
+        }
+      },
+      onError: (error) {
+        print('DEBUG: Stream error: $error');
+        // Forward errors to the stream consumers as a final message.
+        _responseController.add('Error: $error');
+      },
+      cancelOnError: true,
+    );
+    _streamSubscription?.onDone(() {
+      print('DEBUG: Stream done');
+      _streamSubscription = null;
+    });
+  }
+
+  static void _processStreamChunk(String chunk, bool done) {
+    // The stream can emit partial text without whitespace at the end (e.g., "Hello" then " world").
+    // The previous implementation buffered until whitespace was received, which caused the UI to
+    // show nothing until the full response arrived.
+    print('DEBUG: _processStreamChunk called - chunk: "$chunk", done: $done');
+    if (chunk.isEmpty && !done) return;
+
+    final cleaned = _cleanChunk(chunk);
+    print('DEBUG: Cleaned chunk: "$cleaned"');
+
+    // Emit chunks as they arrive to enable true streaming in the UI.
+    if (cleaned.isNotEmpty) {
+      _responseController.add(cleaned);
+    }
+
+    if (done) {
+      print('DEBUG: Emitting [DONE] marker');
+      _responseController.add('[DONE]');
+    }
+  }
+
+  static String _cleanChunk(String chunk) {
+    // Similar to _cleanResponse but optimized for streaming chunks.
+    // IMPORTANT: Do NOT trim individual chunks - we need spaces as word boundaries!
+    return chunk
+        // Remove special tokens: <|xxx|>, <xxx|>, <[xxx|>, etc.
+        .replaceAll(RegExp(r'<[|\[\w_]*[|>\]]*>'), '')
+        .replaceAll(RegExp(r'<[a-z_]*\|?'), '')
+        .replaceAll(RegExp(r'\|>'), '')
+        // Remove common artifact tags
+        .replaceAll(RegExp(r'<source.*?>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<lim_.*?>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<im_.*?>', caseSensitive: false), '')
+        // Remove system prompts and generic assistant markers
+        .replaceAll('You are a helpful assistant.', '')
+        .replaceAll('assistant', '')
+        // Normalize whitespace (but preserve word boundaries)
+        .replaceAll(RegExp(r' +'), ' ')
+        // Don't trim here - preserve leading/trailing spaces as word boundaries!
+        ;
   }
 
   static Stream<Map<String, dynamic>> get downloadProgress {
@@ -46,12 +132,24 @@ class LlmPlatformChannel {
     }
   }
 
+  static Stream<String> get responseStream {
+    _initResponseStreamListener();
+    return _responseController.stream;
+  }
+
   static Future<String> generateResponse(String prompt) async {
     final stopwatch = Stopwatch()..start();
     final int memoryBeforeBytes = ProcessInfo.currentRss;
     String response = '';
     bool success = false;
     String? errorMessage;
+
+    // CRITICAL: Set up the stream listener FIRST, before calling the method
+    // This prevents race conditions where events are sent before Flutter is listening
+    _initResponseStreamListener();
+    
+    // Give the stream listener a moment to be fully established
+    await Future.delayed(const Duration(milliseconds: 50));
 
     try {
       response = await _channel.invokeMethod('generateResponse', {'prompt': prompt});
@@ -93,6 +191,7 @@ class LlmPlatformChannel {
         responseCharsPerSecond: responseCharsPerSecond,
         responseWordsPerSecond: responseWordsPerSecond,
         promptToResponseRatio: promptToResponseRatio,
+        firstTokenLatencyMs: _firstTokenLatencyMs,
       );
       await MetricsRecorder.instance.recordEntry(metric);
     }

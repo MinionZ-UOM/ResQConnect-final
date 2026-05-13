@@ -13,18 +13,17 @@ class HelpRequestScreen extends StatefulWidget {
 class _HelpRequestScreenState extends State<HelpRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedDisaster;
+  String? _requestTitle;
   String? _requestText;
   XFile? _imageFile;
+  String? _voiceNotePath;
   LocationData? _location;
   bool _submitting = false;
 
   final List<String> _disasters = [
-    'Flood',
-    'Earthquake',
-    'Fire',
-    'Landslide',
-    'Cyclone',
-    'Other',
+    'Galle Monsoon 2026',
+    'Batticaloa Flood 2026',
+    'Ratmalana Landslide 2026',
   ];
 
   Future<void> _pickImage() async {
@@ -55,6 +54,13 @@ class _HelpRequestScreenState extends State<HelpRequestScreen> {
     });
   }
 
+  void _addVoiceNote() {
+    // TODO: Replace with actual audio recording flow.
+    setState(() {
+      _voiceNotePath = 'voice-note-${DateTime.now().millisecondsSinceEpoch}.m4a';
+    });
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (_location == null) {
@@ -67,6 +73,18 @@ class _HelpRequestScreenState extends State<HelpRequestScreen> {
     setState(() {
       _submitting = true;
     });
+
+    final payload = {
+      'disaster': _selectedDisaster,
+      'title': _requestTitle,
+      'details': _requestText,
+      'latitude': _location?.latitude,
+      'longitude': _location?.longitude,
+      'imagePath': _imageFile?.path,
+      'voiceNotePath': _voiceNotePath,
+    };
+    debugPrint('Submitting help request: $payload');
+
     // TODO: Send help request to backend or save locally
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -108,7 +126,7 @@ class _HelpRequestScreenState extends State<HelpRequestScreen> {
                 // --- Disaster Type Dropdown ---
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(
-                    labelText: 'Type of Disaster',
+                    labelText: 'Select Disaster',
                     prefixIcon: Icon(Icons.category_outlined),
                   ),
                   value: _selectedDisaster,
@@ -118,10 +136,22 @@ class _HelpRequestScreenState extends State<HelpRequestScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // --- Request Title Text Field ---
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    hintText: 'e.g., "Urgent rescue needed"',
+                    prefixIcon: Icon(Icons.title_outlined),
+                  ),
+                  onChanged: (v) => _requestTitle = v,
+                  validator: (v) => (v == null || v.isEmpty) ? 'Please enter a title' : null,
+                ),
+                const SizedBox(height: 16),
+
                 // --- Request Details Text Field ---
                 TextFormField(
                   decoration: const InputDecoration(
-                    labelText: 'Additional Details',
+                    labelText: 'Details',
                     hintText: 'e.g., "Family trapped on the roof," "Road is blocked," etc.',
                     prefixIcon: Icon(Icons.description_outlined),
                   ),
@@ -140,6 +170,10 @@ class _HelpRequestScreenState extends State<HelpRequestScreen> {
 
                 // --- Image Picker UI ---
                 _buildImagePicker(theme),
+                const SizedBox(height: 16),
+
+                // --- Voice Note UI ---
+                _buildVoiceNotePicker(theme),
                 const SizedBox(height: 16),
 
                 // --- Location Picker UI ---
@@ -208,6 +242,42 @@ class _HelpRequestScreenState extends State<HelpRequestScreen> {
                 onPressed: () => setState(() => _imageFile = null),
               ),
             ],
+          );
+  }
+
+  // --- Helper Widget for Voice Note Picker ---
+  Widget _buildVoiceNotePicker(ThemeData theme) {
+    return _voiceNotePath == null
+        ? OutlinedButton.icon(
+            icon: const Icon(Icons.mic_none_outlined),
+            label: const Text('Add Voice Note'),
+            onPressed: _addVoiceNote,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          )
+        : Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12.0),
+              border: Border.all(color: theme.colorScheme.primary.withOpacity(0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.mic, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text('Voice note attached'),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: theme.colorScheme.primary),
+                  onPressed: () => setState(() => _voiceNotePath = null),
+                )
+              ],
+            ),
           );
   }
 

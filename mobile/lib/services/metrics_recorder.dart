@@ -20,12 +20,14 @@ class MetricEntry {
     double? responseCharsPerSecond,
     double? responseWordsPerSecond,
     double? promptToResponseRatio,
+    int? firstTokenLatencyMs,
   })  : memoryDeltaBytes = memoryAfterBytes - memoryBeforeBytes,
         promptWordCount = promptWordCount ?? 0,
         responseWordCount = responseWordCount ?? 0,
         responseCharsPerSecond = responseCharsPerSecond ?? 0,
         responseWordsPerSecond = responseWordsPerSecond ?? 0,
-        promptToResponseRatio = promptToResponseRatio ?? 0;
+        promptToResponseRatio = promptToResponseRatio ?? 0,
+        firstTokenLatencyMs = firstTokenLatencyMs ?? 0;
 
   factory MetricEntry.fromJson(Map<String, dynamic> json) {
     return MetricEntry(
@@ -42,6 +44,7 @@ class MetricEntry {
       responseCharsPerSecond: (json['responseCharsPerSecond'] as num?)?.toDouble(),
       responseWordsPerSecond: (json['responseWordsPerSecond'] as num?)?.toDouble(),
       promptToResponseRatio: (json['promptToResponseRatio'] as num?)?.toDouble(),
+      firstTokenLatencyMs: json['firstTokenLatencyMs'] as int?,
     );
   }
 
@@ -59,6 +62,7 @@ class MetricEntry {
   final double responseCharsPerSecond;
   final double responseWordsPerSecond;
   final double promptToResponseRatio;
+  final int firstTokenLatencyMs;
 
   Map<String, dynamic> toJson() {
     return {
@@ -76,6 +80,7 @@ class MetricEntry {
       'responseCharsPerSecond': responseCharsPerSecond,
       'responseWordsPerSecond': responseWordsPerSecond,
       'promptToResponseRatio': promptToResponseRatio,
+      'firstTokenLatencyMs': firstTokenLatencyMs,
     };
   }
 }
@@ -132,13 +137,14 @@ class MetricsRecorder extends ChangeNotifier {
     await ensureInitialized();
     final buffer = StringBuffer()
       ..writeln(
-        'timestamp,latency_ms,memory_before_bytes,memory_after_bytes,memory_delta_bytes,prompt_length,response_length,prompt_word_count,response_word_count,response_chars_per_second,response_words_per_second,prompt_to_response_ratio,success,error_message',
+        'timestamp,latency_ms,first_token_latency_ms,memory_before_bytes,memory_after_bytes,memory_delta_bytes,prompt_length,response_length,prompt_word_count,response_word_count,response_chars_per_second,response_words_per_second,prompt_to_response_ratio,success,error_message',
       );
 
     for (final entry in _entries) {
       final row = [
         entry.timestamp.toIso8601String(),
         entry.latencyMs.toString(),
+        entry.firstTokenLatencyMs.toString(),
         entry.memoryBeforeBytes.toString(),
         entry.memoryAfterBytes.toString(),
         entry.memoryDeltaBytes.toString(),

@@ -198,6 +198,7 @@ class _MetricTile extends StatelessWidget {
               runSpacing: 8,
               children: [
                 _MetricChip(label: 'Latency', value: latency),
+                _MetricChip(label: 'First Token', value: '${entry.firstTokenLatencyMs} ms'),
                 _MetricChip(label: 'Memory Δ', value: '$memoryDeltaMb MB'),
                 _MetricChip(label: 'Memory (after)', value: '$memoryAfterMb MB'),
                 _MetricChip(label: 'Prompt chars', value: '${entry.promptLength}'),

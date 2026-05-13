@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Environment
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
 import java.io.File
@@ -13,9 +14,14 @@ import android.content.Context
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "llm_inference"
+    private val STREAM_CHANNEL = "llm_inference_stream"
     private var modelInstance: InferenceModel? = null
 
     private lateinit var mainChannel: MethodChannel
+    private var streamSink: EventChannel.EventSink? = null
+    private var inferenceStartMs: Long = 0
+    private var firstTokenReceivedMs: Long = 0
+    private var isFirstToken: Boolean = true
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -26,6 +32,21 @@ class MainActivity : FlutterActivity() {
             Model.QWEN2_0_5B_INSTRUCT.path = savedPath
         }
         mainChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        // Stream channel for partial token delivery
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, STREAM_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    android.util.Log.d("LLM_STREAM", "onListen called, setting up stream sink")
+                    streamSink = events
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    android.util.Log.d("LLM_STREAM", "onCancel called, clearing stream sink")
+                    streamSink = null
+                }
+            }
+        )
+
         mainChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "downloadModel" -> {
@@ -42,10 +63,35 @@ class MainActivity : FlutterActivity() {
                     if (modelInstance == null) {
                         modelInstance = InferenceModel.getInstance(this)
                     }
+                    inferenceStartMs = System.currentTimeMillis()
+                    firstTokenReceivedMs = 0
+                    isFirstToken = true
+                    android.util.Log.d("LLM_STREAM", "generateResponse started at $inferenceStartMs")
                     val responseFuture = modelInstance?.generateResponseAsync(
                         prompt,
                         object : com.google.mediapipe.tasks.genai.llminference.ProgressListener<String> {
-                            override fun run(partialResult: String?, done: Boolean) {}
+                            override fun run(partialResult: String?, done: Boolean) {
+                                val now = System.currentTimeMillis()
+                                val delta = now - inferenceStartMs
+                                
+                                // Track first token arrival time
+                                if (isFirstToken && !partialResult.isNullOrEmpty()) {
+                                    firstTokenReceivedMs = now
+                                    isFirstToken = false
+                                    android.util.Log.d("LLM_STREAM", "First token received after $delta ms")
+                                }
+                                
+                                // Stream partial results back to Flutter as they are generated
+                                // Must run on main thread to safely update the stream sink
+                                android.util.Log.d("LLM_STREAM", "ProgressListener called after $delta ms: done=$done, text='${partialResult?.take(50) ?: ""}'")
+                                runOnUiThread {
+                                    streamSink?.success(mapOf(
+                                        "text" to (partialResult ?: ""),
+                                        "done" to done,
+                                        "firstTokenLatencyMs" to (if (firstTokenReceivedMs > 0) firstTokenReceivedMs - inferenceStartMs else 0)
+                                    ))
+                                }
+                            }
                         }
                     )
                     GlobalScope.launch(Dispatchers.IO) {
@@ -57,6 +103,7 @@ class MainActivity : FlutterActivity() {
                             }
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
+                                streamSink?.error("INFERENCE_ERROR", e.message, null)
                                 result.error("INFERENCE_ERROR", e.message, null)
                             }
                         }
